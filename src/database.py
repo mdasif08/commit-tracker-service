@@ -9,6 +9,7 @@ from sqlalchemy import (
     Text,
     JSON,
     Enum as SQLEnum,
+    ForeignKey,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime, timezone
@@ -45,7 +46,7 @@ class CommitRecord(Base):
     author_name = Column(String(255), nullable=False)
     author_email = Column(String(255), nullable=False)
     commit_message = Column(Text, nullable=False)
-    commit_date = Column(DateTime, nullable=False, index=True)
+    commit_date = Column(DateTime(timezone=True), nullable=False, index=True)
     source_type = Column(SQLEnum(CommitSource), nullable=False, index=True)
     branch_name = Column(String(255), nullable=True, index=True)
     files_changed = Column(JSON, nullable=True)
@@ -53,7 +54,7 @@ class CommitRecord(Base):
     lines_deleted = Column(Integer, nullable=True)
     parent_commits = Column(JSON, nullable=True)
     status = Column(SQLEnum(CommitStatus), nullable=False, default=CommitStatus.PENDING)
-    metadata = Column(JSON, nullable=True)
+    commit_metadata = Column(JSON, nullable=True)
     
     # NEW: Diff content columns for production-ready analysis
     diff_content = Column(Text, nullable=True)  # Actual diff output
@@ -61,11 +62,11 @@ class CommitRecord(Base):
     diff_hash = Column(String(64), nullable=True, index=True)  # For deduplication
     
     created_at = Column(
-        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
     )
-    processed_at = Column(DateTime, nullable=True)
+    processed_at = Column(DateTime(timezone=True), nullable=True)
     updated_at = Column(
-        DateTime,
+        DateTime(timezone=True),
         nullable=False,
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
@@ -93,10 +94,10 @@ class CommitFileRecord(Base):
     security_risk_level = Column(String(20), default="low", index=True)
     
     created_at = Column(
-        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
     )
     updated_at = Column(
-        DateTime,
+        DateTime(timezone=True),
         nullable=False,
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
@@ -137,7 +138,7 @@ class DatabaseService:
                 lines_added=commit_data.get('lines_added'),
                 lines_deleted=commit_data.get('lines_deleted'),
                 parent_commits=commit_data.get('parent_commits'),
-                metadata=commit_data.get('metadata'),
+                commit_metadata=commit_data.get('metadata'),
                 diff_content=commit_data.get('diff_content', ''),
                 file_diffs=commit_data.get('file_diffs', {}),
                 diff_hash=commit_data.get('diff_hash', '')
@@ -207,10 +208,46 @@ class DatabaseService:
             result = await session.execute(
                 "SELECT id, commit_hash, repository_name, author_name, author_email, "
                 "commit_message, commit_date, source_type, branch_name, files_changed, "
-                "lines_added, lines_deleted, parent_commits, status, metadata, "
+                "lines_added, lines_deleted, parent_commits, status, commit_metadata, "
                 "created_at, processed_at, updated_at "
                 "FROM commits WHERE id = :commit_id",
                 {"commit_id": commit_id}
+            )
+            row = result.fetchone()
+            if row:
+                return {
+                    "id": str(row[0]),
+                    "commit_hash": row[1],
+                    "repository_name": row[2],
+                    "author_name": row[3],
+                    "author_email": row[4],
+                    "commit_message": row[5],
+                    "commit_date": row[6].isoformat() if row[6] else None,
+                    "source_type": row[7],
+                    "branch_name": row[8],
+                    "files_changed": row[9],
+                    "lines_added": row[10],
+                    "lines_deleted": row[11],
+                    "parent_commits": row[12],
+                    "status": row[13],
+                    "metadata": row[14],
+                    "created_at": row[15].isoformat() if row[15] else None,
+                    "processed_at": row[16].isoformat() if row[16] else None,
+                    "updated_at": row[17].isoformat() if row[17] else None
+                }
+            return None
+
+    async def get_commit_metadata_by_hash(self, commit_hash: str) -> Optional[dict]:
+        """Get commit metadata by commit hash."""
+        async with self.session_factory() as session:
+            from sqlalchemy import text
+            result = await session.execute(
+                text("SELECT id, commit_hash, repository_name, author_name, author_email, "
+                "commit_message, commit_date, source_type, branch_name, files_changed, "
+                "lines_added, lines_deleted, parent_commits, status, commit_metadata, "
+                "created_at, processed_at, updated_at "
+                "FROM commits WHERE commit_hash = :commit_hash"),
+                {"commit_hash": commit_hash}
             )
             row = result.fetchone()
             if row:
@@ -242,7 +279,7 @@ class DatabaseService:
             result = await session.execute(
                 "SELECT id, commit_hash, repository_name, author_name, author_email, "
                 "commit_message, commit_date, source_type, branch_name, files_changed, "
-                "lines_added, lines_deleted, parent_commits, status, metadata, "
+                "lines_added, lines_deleted, parent_commits, status, commit_metadata, "
                 "diff_content, file_diffs, created_at, processed_at, updated_at "
                 "FROM commits WHERE id = :commit_id",
                 {"commit_id": commit_id}
@@ -462,8 +499,9 @@ class DatabaseService:
     async def health_check(self) -> bool:
         """Check database health."""
         try:
-            async with self.get_session() as session:
-                await session.execute("SELECT 1")
+            async with self.session_factory() as session:
+                from sqlalchemy import text
+                await session.execute(text("SELECT 1"))
             return True
         except Exception as e:
             logger.error("Database health check failed", error=str(e))
