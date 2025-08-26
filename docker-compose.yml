@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  commit-tracker-service:
+    build: .
+    container_name: commit-tracker-service
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://commit_user:commit_password@postgres:5432/commit_tracker
+      - DEBUG=true
+      - LOG_LEVEL=INFO
+      - ENABLE_METRICS=true
+    volumes:
+      - .:/app
+      - git-repo:/app/repo
+    depends_on:
+      - postgres
+    networks:
+      - microservice-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: commit-tracker-postgres
+    environment:
+      - POSTGRES_DB=commit_tracker
+      - POSTGRES_USER=commit_user
+      - POSTGRES_PASSWORD=commit_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5433:5432"
+    networks:
+      - microservice-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U commit_user -d commit_tracker"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  git-repo:
+
+networks:
+  microservice-network:
+    driver: bridge
