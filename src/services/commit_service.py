@@ -2,6 +2,7 @@ import structlog
 from typing import List
 from datetime import datetime, timedelta
 from sqlalchemy import select, func, desc
+from fastapi import HTTPException
 
 from ..models import (
     CommitResponse,
@@ -16,12 +17,34 @@ from ..database import get_db_service, CommitRecord
 
 logger = structlog.get_logger(__name__)
 
-
 class CommitService:
     """Core service for commit tracking operations."""
 
     def __init__(self):
         self.db_service = None
+
+    def _validate_commit_data(self, commit_data: dict) -> bool:
+        """Validate commit data to prevent test data from being stored."""
+        # Check for test-related patterns
+        test_patterns = [
+            commit_data.get('commit_hash', '').startswith('test_'),
+            commit_data.get('author_name', '').startswith('Test'),
+            commit_data.get('repository_name', '').startswith('test_'),
+            commit_data.get('commit_hash') == 'abc1234567890abcdef1234567890abcdef1234',
+            'test' in commit_data.get('commit_message', '').lower(),
+        ]
+        
+        if any(test_patterns):
+            logger.warning(
+                "Test data detected and rejected",
+                commit_hash=commit_data.get('commit_hash'),
+                author=commit_data.get('author_name'),
+                repository=commit_data.get('repository_name'),
+                message=commit_data.get('commit_message')
+            )
+            return False
+        
+        return True
 
     async def _get_db_service(self):
         """Get database service instance."""
@@ -34,7 +57,7 @@ class CommitService:
     ) -> List[CommitResponse]:
         """Track commits from GitHub webhook service."""
         logger.info(
-            "Processing webhook commits",
+                    "Processing webhook commits",
             event_type=webhook_payload.event_type,
             commit_count=len(webhook_payload.commits),
         )
@@ -45,14 +68,19 @@ class CommitService:
         async with db_service.get_session() as session:
             for commit_data in webhook_payload.commits:
                 try:
+                    # Validate commit data to prevent test data
+                    if not self._validate_commit_data(commit_data):
+                        logger.warning("Skipping test commit data", commit_hash=commit_data.get("id", ""))
+                        continue
+                    
                     # Create commit record
                     commit_record = CommitRecord(
                         commit_hash=commit_data.get("id", ""),
                         repository_name=webhook_payload.repository.get(
-                            "full_name", "unknown"
+                                                                       "full_name", "unknown"
                         ),
                         author_name=commit_data.get("author", {}).get(
-                            "name", "Unknown"
+                                                                      "name", "Unknown"
                         ),
                         author_email=commit_data.get("author", {}).get("email", ""),
                         commit_message=commit_data.get("message", ""),
@@ -71,8 +99,8 @@ class CommitService:
                         processed_at=datetime.utcnow(),
                         metadata={
                             "webhook_event_type": webhook_payload.event_type,
-                            "sender": webhook_payload.sender,
-                            "compare_url": webhook_payload.compare,
+                                "sender": webhook_payload.sender,
+                                    "compare_url": webhook_payload.compare,
                         },
                     )
 
@@ -91,14 +119,14 @@ class CommitService:
                     responses.append(response)
 
                     logger.info(
-                        "Webhook commit tracked successfully",
+                                "Webhook commit tracked successfully",
                         commit_hash=commit_record.commit_hash[:8],
                         repository=commit_record.repository_name,
                     )
 
                 except Exception as e:
                     logger.error(
-                        "Failed to track webhook commit",
+                                 "Failed to track webhook commit",
                         commit_hash=commit_data.get("id", "")[:8],
                         error=str(e),
                     )
@@ -109,7 +137,7 @@ class CommitService:
     async def track_local_commit(self, local_commit: LocalCommitData) -> CommitResponse:
         """Track commits from local git repository."""
         logger.info(
-            "Processing local commit",
+                    "Processing local commit",
             commit_hash=local_commit.commit_hash[:8],
             repository_path=local_commit.repository_path,
         )
@@ -118,6 +146,18 @@ class CommitService:
 
         async with db_service.get_session() as session:
             try:
+                # Validate commit data to prevent test data
+                local_commit_dict = {
+                    'commit_hash': local_commit.commit_hash,
+                    'author_name': local_commit.author_name,
+                    'repository_name': local_commit.repository_path.split("/")[-1],
+                    'commit_message': local_commit.commit_message,
+                }
+                
+                if not self._validate_commit_data(local_commit_dict):
+                    logger.warning("Skipping test local commit data", commit_hash=local_commit.commit_hash[:8])
+                    raise HTTPException(status_code=400, detail="Test data not allowed")
+                
                 # Create commit record
                 commit_record = CommitRecord(
                     commit_hash=local_commit.commit_hash,
@@ -138,7 +178,7 @@ class CommitService:
                     processed_at=datetime.utcnow(),
                     metadata={
                         "repository_path": local_commit.repository_path,
-                        "source": "local_git",
+                            "source": "local_git",
                     },
                 )
 
@@ -156,7 +196,7 @@ class CommitService:
                 )
 
                 logger.info(
-                    "Local commit tracked successfully",
+                            "Local commit tracked successfully",
                     commit_hash=commit_record.commit_hash[:8],
                     repository=commit_record.repository_name,
                 )
@@ -165,7 +205,7 @@ class CommitService:
 
             except Exception as e:
                 logger.error(
-                    "Failed to track local commit",
+                             "Failed to track local commit",
                     commit_hash=local_commit.commit_hash[:8],
                     error=str(e),
                 )
@@ -317,7 +357,6 @@ class CommitService:
                 most_active_branch=most_active_branch,
                 last_commit_date=last_commit_date,
             )
-
 
 # Global commit service instance
 commit_service = CommitService()

@@ -2,7 +2,6 @@ from typing import List
 from pydantic_settings import BaseSettings
 from pydantic import Field
 
-
 class Settings(BaseSettings):
     """Application settings for Commit Tracker Service."""
 
@@ -60,7 +59,6 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
-
 
 # Global settings instance
 settings = Settings()

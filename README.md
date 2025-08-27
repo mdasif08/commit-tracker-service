@@ -75,6 +75,11 @@ The Commit Tracker Service is designed to be a standalone microservice that can 
    python -m uvicorn src.main:app --host 0.0.0.0 --port 8001 --reload
    ```
 
+6. **For testing (mock server):**
+   ```bash
+   python scripts/start_server.py
+   ```
+
 ## Authentication
 
 The service uses JWT (JSON Web Tokens) for authentication. All API endpoints (except health checks and authentication) require a valid JWT token.
@@ -98,6 +103,41 @@ curl -X GET "http://localhost:8001/api/commits/test-repo" \
 
 - **Username**: `admin`, **Password**: `admin123`
 - **Username**: `developer`, **Password**: `dev123`
+
+## Testing
+
+### Running Tests
+
+1. **Start the mock server for testing:**
+   ```bash
+   python scripts/start_server.py
+   ```
+
+2. **Run all tests:**
+   ```bash
+   python tests/test_curl_endpoints.py
+   ```
+
+3. **Run specific test categories:**
+   ```bash
+   # API tests
+   python tests/test_api.py
+   
+   # Database tests
+   python tests/test_database.py
+   
+   # Service tests
+   python tests/test_services.py
+   ```
+
+### Test Organization
+
+All test files are organized in the `tests/` directory:
+- `tests/test_curl_endpoints.py` - Comprehensive API endpoint testing
+- `tests/test_api.py` - Basic API functionality tests
+- `tests/test_database.py` - Database operations and cleanup
+- `tests/test_services.py` - Service layer testing
+- `tests/test_server.py` - Mock server for testing
 
 ## API Endpoints
 

@@ -26,20 +26,19 @@ security = HTTPBearer()
 fake_users_db = {
     "admin": {
         "username": "admin",
-        "full_name": "Administrator",
-        "email": "admin@example.com",
-        "hashed_password": pwd_context.hash("admin123"),
-        "disabled": False,
+            "full_name": "Administrator",
+                "email": "admin@example.com",
+                "hashed_password": pwd_context.hash("admin123"),
+                "disabled": False,
     },
-    "developer": {
+        "developer": {
         "username": "developer",
-        "full_name": "Developer User",
-        "email": "dev@example.com",
-        "hashed_password": pwd_context.hash("dev123"),
-        "disabled": False,
+            "full_name": "Developer User",
+                "email": "dev@example.com",
+                "hashed_password": pwd_context.hash("dev123"),
+                "disabled": False,
     },
 }
-
 
 class AuthService:
     """Authentication service for JWT token management."""
@@ -114,7 +113,6 @@ class AuthService:
                 headers={"WWW-Authenticate": "Bearer"},
             )
         return user
-
 
 # Global auth service instance
 auth_service = AuthService()

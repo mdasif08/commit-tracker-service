@@ -7,7 +7,6 @@ import re
 
 logger = structlog.get_logger(__name__)
 
-
 class GitUtils:
     """Utility class for Git operations and local commit tracking."""
 
@@ -96,16 +95,16 @@ class GitUtils:
                         commits.append(
                             {
                                 "hash": commit_data["hash"],
-                                "author_name": commit_data["author_name"],
-                                "author_email": commit_data["author_email"],
-                                "commit_date": commit_data["commit_date"],
-                                "message": commit_data["message"],
-                                "parent_hashes": parent_hashes,
+                                    "author_name": commit_data["author_name"],
+                                        "author_email": commit_data["author_email"],
+                                        "commit_date": commit_data["commit_date"],
+                                        "message": commit_data["message"],
+                                        "parent_hashes": parent_hashes,
                             }
                         )
                     except json.JSONDecodeError as e:
                         logger.warning(
-                            "Failed to parse commit data", line=line, error=str(e)
+                                       "Failed to parse commit data", line=line, error=str(e)
                         )
                         continue
 
@@ -150,13 +149,13 @@ class GitUtils:
 
             return {
                 "files_changed": files_changed,
-                "lines_added": lines_added,
-                "lines_deleted": lines_deleted,
+                    "lines_added": lines_added,
+                        "lines_deleted": lines_deleted,
             }
 
         except Exception as e:
             logger.error(
-                "Failed to get commit stats", commit_hash=commit_hash[:8], error=str(e)
+                         "Failed to get commit stats", commit_hash=commit_hash[:8], error=str(e)
             )
             return {"files_changed": [], "lines_added": 0, "lines_deleted": 0}
 
@@ -191,19 +190,19 @@ class GitUtils:
 
             return {
                 "hash": commit_data["hash"],
-                "author_name": commit_data["author_name"],
-                "author_email": commit_data["author_email"],
-                "commit_date": commit_data["commit_date"],
-                "message": commit_data["message"],
-                "parent_hashes": parent_hashes,
-                "files_changed": stats["files_changed"],
-                "lines_added": stats["lines_added"],
-                "lines_deleted": stats["lines_deleted"],
+                    "author_name": commit_data["author_name"],
+                        "author_email": commit_data["author_email"],
+                        "commit_date": commit_data["commit_date"],
+                        "message": commit_data["message"],
+                        "parent_hashes": parent_hashes,
+                        "files_changed": stats["files_changed"],
+                        "lines_added": stats["lines_added"],
+                        "lines_deleted": stats["lines_deleted"],
             }
 
         except Exception as e:
             logger.error(
-                "Failed to get commit info", commit_hash=commit_hash[:8], error=str(e)
+                         "Failed to get commit info", commit_hash=commit_hash[:8], error=str(e)
             )
             return None
 
@@ -212,9 +211,9 @@ class GitUtils:
         if not self._is_git_repo:
             return {
                 "has_changes": False,
-                "modified_files": [],
-                "added_files": [],
-                "deleted_files": [],
+                    "modified_files": [],
+                        "added_files": [],
+                        "deleted_files": [],
             }
 
         try:
@@ -224,9 +223,9 @@ class GitUtils:
             if not status_output.strip():
                 return {
                     "has_changes": False,
-                    "modified_files": [],
-                    "added_files": [],
-                    "deleted_files": [],
+                        "modified_files": [],
+                            "added_files": [],
+                            "deleted_files": [],
                 }
 
             modified_files = []
@@ -247,18 +246,18 @@ class GitUtils:
 
             return {
                 "has_changes": True,
-                "modified_files": modified_files,
-                "added_files": added_files,
-                "deleted_files": deleted_files,
+                    "modified_files": modified_files,
+                        "added_files": added_files,
+                        "deleted_files": deleted_files,
             }
 
         except Exception as e:
             logger.error("Failed to get uncommitted changes", error=str(e))
             return {
                 "has_changes": False,
-                "modified_files": [],
-                "added_files": [],
-                "deleted_files": [],
+                    "modified_files": [],
+                        "added_files": [],
+                        "deleted_files": [],
             }
 
     def create_commit(
@@ -287,7 +286,6 @@ class GitUtils:
             logger.error("Failed to create commit", error=str(e))
             return None
 
-
     def get_commit_diff(self, commit_hash: str) -> Dict[str, Any]:
         """Get the actual diff content for a commit."""
         try:
@@ -295,18 +293,18 @@ class GitUtils:
             diff_output = self._run_git_command([
                 "show", "--unified=3", "--no-prefix", commit_hash
             ])
-            
+
             # Get structured diff data
             file_diffs = self._parse_file_diffs(commit_hash)
-            
+
             return {
                 "diff_content": diff_output,
-                "file_diffs": file_diffs
+                    "file_diffs": file_diffs
             }
         except Exception as e:
             logger.error(f"Failed to get diff for {commit_hash}", error=str(e))
             return {"diff_content": "", "file_diffs": {}}
-    
+
     def _parse_file_diffs(self, commit_hash: str) -> Dict[str, Any]:
         """Parse file-by-file diff information with detailed analysis."""
         try:
@@ -314,7 +312,7 @@ class GitUtils:
             files_output = self._run_git_command([
                 "show", "--name-status", "--pretty=format:", commit_hash
             ])
-            
+
             file_diffs = {}
             for line in files_output.split("\n"):
                 if line.strip():
@@ -322,27 +320,27 @@ class GitUtils:
                     if len(parts) >= 2:
                         status = parts[0]
                         filename = parts[1]
-                        
+
                         # Get file-specific diff
                         file_diff = self._get_file_diff(commit_hash, filename)
-                        
+
                         file_diffs[filename] = {
                             "status": self._map_git_status(status),
-                            "additions": file_diff.get("additions", []),
-                            "deletions": file_diff.get("deletions", []),
-                            "modifications": file_diff.get("modifications", []),
-                            "diff_content": file_diff.get("diff_content", ""),
-                            "size_before": file_diff.get("size_before"),
-                            "size_after": file_diff.get("size_after"),
-                            "complexity_score": self._calculate_complexity(file_diff.get("diff_content", "")),
-                            "security_risk_level": self._assess_security_risk(filename, file_diff.get("diff_content", ""))
+                                "additions": file_diff.get("additions", []),
+                                    "deletions": file_diff.get("deletions", []),
+                                    "modifications": file_diff.get("modifications", []),
+                                    "diff_content": file_diff.get("diff_content", ""),
+                                    "size_before": file_diff.get("size_before"),
+                                    "size_after": file_diff.get("size_after"),
+                                    "complexity_score": self._calculate_complexity(file_diff.get("diff_content", "")),
+                                    "security_risk_level": self._assess_security_risk(filename, file_diff.get("diff_content", ""))
                         }
-            
+
             return file_diffs
         except Exception as e:
             logger.error(f"Failed to parse file diffs for {commit_hash}", error=str(e))
             return {}
-    
+
     def _get_file_diff(self, commit_hash: str, filename: str) -> Dict[str, Any]:
         """Get detailed diff for a specific file."""
         try:
@@ -350,11 +348,11 @@ class GitUtils:
             diff_output = self._run_git_command([
                 "show", "--unified=3", "--no-prefix", commit_hash, "--", filename
             ])
-            
+
             additions = []
             deletions = []
             modifications = []
-            
+
             for line in diff_output.split('\n'):
                 if line.startswith('+') and not line.startswith('+++'):
                     additions.append(line)
@@ -362,17 +360,17 @@ class GitUtils:
                     deletions.append(line)
                 elif line.startswith('@@'):
                     modifications.append(line)
-            
+
             return {
                 "diff_content": diff_output,
-                "additions": additions,
-                "deletions": deletions,
-                "modifications": modifications
+                    "additions": additions,
+                        "deletions": deletions,
+                        "modifications": modifications
             }
         except Exception as e:
             logger.error(f"Failed to get file diff for {filename}", error=str(e))
             return {"diff_content": "", "additions": [], "deletions": [], "modifications": []}
-    
+
     def _map_git_status(self, git_status: str) -> str:
         """Map git status to our status format."""
         status_map = {
@@ -383,15 +381,15 @@ class GitUtils:
             'C': 'copied'
         }
         return status_map.get(git_status, 'modified')
-    
+
     def _calculate_complexity(self, diff_content: str) -> int:
         """Calculate complexity score based on diff content."""
         if not diff_content:
             return 0
-        
+
         complexity = 0
         lines = diff_content.split('\n')
-        
+
         for line in lines:
             if line.startswith('+') or line.startswith('-'):
                 # Count nested structures
@@ -403,18 +401,18 @@ class GitUtils:
                     complexity += 1
                 if 'class ' in line:
                     complexity += 2
-        
+
         return min(complexity, 10)  # Cap at 10
-    
+
     def _assess_security_risk(self, filename: str, diff_content: str) -> str:
         """Assess security risk level based on file and content."""
         if not diff_content:
             return 'low'
-        
+
         # Check file extension
         file_extension = filename.split('.')[-1].lower() if '.' in filename else ''
         high_risk_extensions = ['py', 'js', 'php', 'java', 'sql']
-        
+
         if file_extension in high_risk_extensions:
             # Check for security-sensitive patterns
             security_patterns = [
@@ -427,13 +425,12 @@ class GitUtils:
                 r'eval\(',
                 r'os\.system\('
             ]
-            
+
             for pattern in security_patterns:
                 if re.search(pattern, diff_content, re.IGNORECASE):
                     return 'high'
-        
-        return 'low'
 
+        return 'low'
 
 # Global git utils instance
 git_utils = GitUtils()

@@ -3,13 +3,11 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 from enum import Enum
 
-
 class CommitSource(str, Enum):
     """Source of commit data."""
 
     WEBHOOK = "webhook"
     LOCAL = "local"
-
 
 class CommitStatus(str, Enum):
     """Status of commit processing."""
@@ -17,7 +15,6 @@ class CommitStatus(str, Enum):
     PENDING = "pending"
     PROCESSED = "processed"
     FAILED = "failed"
-
 
 class CommitData(BaseModel):
     """Commit data structure."""
@@ -39,13 +36,11 @@ class CommitData(BaseModel):
         None, description="Parent commit hashes"
     )
 
-
 class CommitCreateRequest(BaseModel):
     """Request model for creating a commit record."""
 
     commit_data: CommitData
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
-
 
 class CommitResponse(BaseModel):
     """Response model for commit operations."""
@@ -57,7 +52,6 @@ class CommitResponse(BaseModel):
     created_at: datetime = Field(..., description="Record creation timestamp")
     processed_at: Optional[datetime] = Field(None, description="Processing timestamp")
 
-
 class CommitHistoryResponse(BaseModel):
     """Response model for commit history."""
 
@@ -66,7 +60,6 @@ class CommitHistoryResponse(BaseModel):
     total_count: int = Field(..., description="Total number of commits")
     page: int = Field(..., description="Current page number")
     page_size: int = Field(..., description="Page size")
-
 
 class CommitMetrics(BaseModel):
     """Commit metrics and statistics."""
@@ -81,7 +74,6 @@ class CommitMetrics(BaseModel):
     most_active_branch: str = Field(..., description="Most active branch")
     last_commit_date: Optional[datetime] = Field(None, description="Last commit date")
 
-
 class HealthCheckResponse(BaseModel):
     """Health check response."""
 
@@ -90,7 +82,6 @@ class HealthCheckResponse(BaseModel):
     version: str = Field(..., description="Service version")
     database_status: str = Field(..., description="Database connection status")
 
-
 class ErrorResponse(BaseModel):
     """Error response model."""
 
@@ -98,7 +89,6 @@ class ErrorResponse(BaseModel):
     detail: Optional[str] = Field(None, description="Error details")
     timestamp: datetime = Field(..., description="Error timestamp")
     request_id: Optional[str] = Field(None, description="Request ID for tracking")
-
 
 class WebhookPayload(BaseModel):
     """Webhook payload from GitHub webhook service."""
@@ -119,7 +109,6 @@ class WebhookPayload(BaseModel):
         None, description="Head commit information"
     )
 
-
 class LocalCommitData(BaseModel):
     """Local commit data structure."""
 
@@ -135,7 +124,6 @@ class LocalCommitData(BaseModel):
     parent_commits: List[str] = Field(..., description="Parent commit hashes")
     repository_path: str = Field(..., description="Repository path")
 
-
 class User(BaseModel):
     """User model for authentication."""
 
@@ -144,19 +132,16 @@ class User(BaseModel):
     full_name: Optional[str] = Field(None, description="Full name")
     disabled: bool = Field(False, description="Account disabled status")
 
-
 class UserInDB(User):
     """User model with hashed password."""
 
     hashed_password: str = Field(..., description="Hashed password")
-
 
 class Token(BaseModel):
     """Token response model."""
 
     access_token: str = Field(..., description="JWT access token")
     token_type: str = Field(default="bearer", description="Token type")
-
 
 class TokenData(BaseModel):
     """Token data model."""

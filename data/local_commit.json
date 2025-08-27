@@ -1,0 +1,71 @@
+{
+  "commit_hash": "84cb98d0b530536e0dd96271f7e7ed1909c24eeb",
+  "repository_path": "/c/Projects/True_Microservice/commit-tracker-service",
+  "repository_name": "commit-tracker-service",
+  "author_name": "mdasif08",
+  "author_email": "mohammadasif24680@gmail.com",
+  "commit_message": "Clean up test files - automatic sync working",
+  "commit_date": "2025-08-26T15:56:43+05:30",
+  "branch_name": "main",
+  "files_changed": [
+    "scripts/auto_sync_commit.py",
+    "src/database.py",
+    "test_auto_hook.md",
+    "test_auto_sync.md"
+  ],
+  "lines_added": 139,
+  "lines_deleted": 14,
+  "parent_commits": ["754fb66"],
+  "source_type": "LOCAL",
+  "status": "PROCESSED",
+  "metadata": {
+    "feature": "automatic sync",
+    "priority": "high",
+    "commit_type": "cleanup",
+    "environment": "development",
+    "os": "Windows",
+    "git_version": "2.41.0.windows.1"
+  },
+  "file_stats": {
+    "scripts/auto_sync_commit.py": {
+      "status": "added",
+      "lines_added": 89,
+      "lines_deleted": 0,
+      "size": 2048
+    },
+    "src/database.py": {
+      "status": "modified",
+      "lines_added": 62,
+      "lines_deleted": 14,
+      "size": 1536
+    },
+    "test_auto_hook.md": {
+      "status": "deleted",
+      "lines_added": 0,
+      "lines_deleted": 2,
+      "size": 0
+    },
+    "test_auto_sync.md": {
+      "status": "deleted",
+      "lines_added": 0,
+      "lines_deleted": 2,
+      "size": 0
+    }
+  },
+  "diff_summary": {
+    "total_files": 4,
+    "files_added": 1,
+    "files_modified": 1,
+    "files_deleted": 2,
+    "total_lines_added": 139,
+    "total_lines_deleted": 14,
+    "net_lines": 125
+  },
+  "git_info": {
+    "remote_origin": "https://github.com/mdasif08/True_Microservice.git",
+    "current_branch": "main",
+    "upstream_branch": "origin/main",
+    "commit_count": 4,
+    "repository_size": "2.1 MB"
+  }
+}

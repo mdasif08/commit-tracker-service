@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "POST",
+    "endpoint": "/api/auth/token",
+    "content_type": "application/x-www-form-urlencoded",
+    "description": "Authenticate user and obtain access token"
+  },
+  "credentials": {
+    "username": "admin",
+    "password": "admin123"
+  },
+  "curl_example": "curl -X POST \"http://localhost:8001/api/auth/token\" -H \"Content-Type: application/x-www-form-urlencoded\" -d \"username=admin&password=admin123\"",
+  "expected_response": {
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTczNTI5NzYwM30.example",
+    "token_type": "bearer",
+    "expires_in": 1800
+  },
+  "error_responses": {
+    "401": {
+      "detail": "Incorrect username or password"
+    },
+    "422": {
+      "detail": "Validation error"
+    }
+  }
+}
