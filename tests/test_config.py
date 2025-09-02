@@ -237,15 +237,16 @@ class TestSettings:
         coaching_url = test_settings.COACHING_SERVICE_URL
         assert isinstance(coaching_url, str)
 
-    def test_settings_config_class(self):
-        """Test the Config class within Settings."""
+    def test_settings_model_config(self):
+        """Test that Settings class has model_config."""
         test_settings = Settings()
 
-        # Test Config attributes
-        assert hasattr(test_settings.Config, "env_file")
-        assert test_settings.Config.env_file == ".env"
-        assert hasattr(test_settings.Config, "case_sensitive")
-        assert test_settings.Config.case_sensitive is True
+        # Test model_config attributes
+        assert hasattr(test_settings, "model_config")
+        assert "env_file" in test_settings.model_config
+        assert test_settings.model_config["env_file"] == ".env"
+        assert "case_sensitive" in test_settings.model_config
+        assert test_settings.model_config["case_sensitive"] is True
 
     def test_environment_variable_case_sensitivity(self):
         """Test that environment variables are case sensitive."""

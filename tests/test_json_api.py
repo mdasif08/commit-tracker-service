@@ -65,7 +65,10 @@ class TestJSONAPIFormat:
   }'"""
         print(new_curl)
         
-        return params, json_api_request
+        # Verify the conversion was successful
+        assert params == json_api_request
+        assert "limit" in params
+        assert "author" in params
     
     def test_json_api_endpoint_post(self):
         """Test the POST endpoint with JSON API format."""

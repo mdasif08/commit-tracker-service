@@ -1,6 +1,6 @@
 import structlog
 from typing import List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import select, func, desc
 from fastapi import HTTPException
 
@@ -268,7 +268,7 @@ class CommitService:
 
         session = await db_service.get_session()
         async with session:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             today = now.date()
             week_ago = now - timedelta(days=7)
             month_ago = now - timedelta(days=30)

@@ -420,14 +420,12 @@ class TestAutoSyncCommit:
 class TestAutoSyncCommitIntegration:
     """Integration tests for auto sync commit."""
     
-    @pytest.mark.integration
     async def test_auto_sync_with_real_git_repo(self):
         """Integration test with real git repository."""
         # This test would require a real git repository
         # For now, we'll skip it in unit tests
         pytest.skip("Integration test - requires real git repository")
     
-    @pytest.mark.integration
     async def test_auto_sync_with_real_database(self):
         """Integration test with real database."""
         # This test would require a real database connection

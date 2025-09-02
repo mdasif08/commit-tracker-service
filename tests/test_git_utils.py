@@ -111,8 +111,14 @@ class TestGitUtils:
 
     def test_get_commit_info(self, git_utils_instance):
         """Test getting commit info."""
-        result = git_utils_instance.get_commit_info('abc123')
-        assert isinstance(result, dict)
+        # Mock the git command to avoid actual git execution
+        with patch('subprocess.run') as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = b'{"hash":"abc123","author_name":"Test Author","author_email":"test@example.com","commit_date":"2023-01-01T00:00:00Z","message":"Test commit","parent_hashes":""}'
+            
+            result = git_utils_instance.get_commit_info('abc123')
+            assert isinstance(result, dict)
+            assert result['hash'] == 'abc123'
 
     def test_is_git_repo(self, git_utils_instance):
         """Test git repository detection."""

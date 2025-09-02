@@ -7,7 +7,7 @@ import sys
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
-from typing import Optional
+from typing import Optional, Union
 
 # Add src to path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -415,7 +415,7 @@ async def track_local_commit(
 
 
 # Get commit history endpoint
-@app.get("/api/commits/{repository_name}", response_model=CommitHistoryResponse)
+@app.get("/api/commits/{repository_name}", response_model=Union[CommitHistoryResponse, ErrorResponse])
 async def get_commit_history(
     repository_name: str,
     page: int = Query(1, ge=1, description="Page number"),

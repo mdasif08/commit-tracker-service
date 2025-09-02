@@ -8,6 +8,7 @@ import json
 import requests
 import asyncio
 import asyncpg
+import pytest
 from datetime import datetime
 from pathlib import Path
 import sys
@@ -15,6 +16,7 @@ import sys
 # Add src to path
 sys.path.append(str(Path(__file__).parent.parent / "src"))
 
+@pytest.mark.asyncio
 async def test_postgresql_setup():
     """Test PostgreSQL database setup."""
     
@@ -53,7 +55,8 @@ async def test_postgresql_setup():
             print(f"     - {table['column_name']}: {table['data_type']}")
         
         await conn.close()
-        return True
+        # Test completed successfully
+        assert True
         
     except Exception as e:
         print(f"❌ PostgreSQL setup failed: {e}")
