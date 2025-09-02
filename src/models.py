@@ -83,12 +83,24 @@ class HealthCheckResponse(BaseModel):
     database_status: str = Field(..., description="Database connection status")
 
 class ErrorResponse(BaseModel):
-    """Error response model."""
+    """Error response model with code fixes and location."""
 
     error: str = Field(..., description="Error message")
     detail: Optional[str] = Field(None, description="Error details")
     timestamp: datetime = Field(..., description="Error timestamp")
     request_id: Optional[str] = Field(None, description="Request ID for tracking")
+    fix_code: Optional[str] = Field(None, description="Code to fix the issue")
+    fix_command: Optional[str] = Field(None, description="Command to fix the issue")
+    file_name: Optional[str] = Field(None, description="File where error occurred")
+    line_number: Optional[int] = Field(None, description="Line number where error occurred")
+
+class CommitHistoryRequest(BaseModel):
+    """Request model for commit history with JSON API format."""
+    
+    limit: int = Field(10, ge=1, le=100, description="Number of commits to return")
+    offset: int = Field(0, ge=0, description="Number of commits to skip")
+    author: Optional[str] = Field(None, description="Filter by author name")
+    branch: Optional[str] = Field(None, description="Filter by branch name")
 
 class WebhookPayload(BaseModel):
     """Webhook payload from GitHub webhook service."""

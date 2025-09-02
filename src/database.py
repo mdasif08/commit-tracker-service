@@ -16,8 +16,8 @@ from datetime import datetime, timezone
 from typing import Optional
 import uuid
 
-from .config import settings
-from .models import CommitSource, CommitStatus
+from src.config import settings
+from src.models import CommitSource, CommitStatus
 
 logger = structlog.get_logger(__name__)
 
@@ -504,6 +504,300 @@ class DatabaseService:
                 }
             return None
 
+    async def get_commits(self, 
+                         limit: int = 50, 
+                         offset: int = 0,
+                         author: Optional[str] = None,
+                         branch: Optional[str] = None) -> list:
+        """Get commits with pagination and filtering."""
+        session = await self.get_session()
+        async with session:
+            from sqlalchemy import text
+            
+            # Build query with filters
+            query = """
+                SELECT id, commit_hash, repository_name, author_name, author_email,
+                       commit_message, commit_date, source_type, branch_name,
+                       files_changed, lines_added, lines_deleted, status,
+                       created_at, updated_at
+                FROM commits
+                WHERE 1=1
+            """
+            params = {}
+            
+            if author:
+                query += " AND author_name LIKE :author"
+                params["author"] = f"%{author}%"
+            
+            if branch:
+                query += " AND branch_name = :branch"
+                params["branch"] = branch
+            
+            query += " ORDER BY commit_date DESC LIMIT :limit OFFSET :offset"
+            params["limit"] = limit
+            params["offset"] = offset
+            
+            result = await session.execute(text(query), params)
+            rows = result.fetchall()
+            
+            return [
+                {
+                    "id": str(row[0]),
+                    "commit_hash": row[1],
+                    "repository_name": row[2],
+                    "author_name": row[3],
+                    "author_email": row[4],
+                    "commit_message": row[5],
+                    "commit_date": row[6].isoformat() if hasattr(row[6], 'isoformat') else str(row[6]) if row[6] else None,
+                    "source_type": row[7],
+                    "branch_name": row[8],
+                    "files_changed": row[9],
+                    "lines_added": row[10],
+                    "lines_deleted": row[11],
+                    "status": row[12],
+                    "created_at": row[13].isoformat() if hasattr(row[13], 'isoformat') else str(row[13]) if row[13] else None,
+                    "updated_at": row[14].isoformat() if hasattr(row[14], 'isoformat') else str(row[14]) if row[14] else None
+                }
+                for row in rows
+            ]
+
+    async def get_commit_count(self, 
+                              author: Optional[str] = None,
+                              branch: Optional[str] = None) -> int:
+        """Get total count of commits with optional filtering."""
+        session = await self.get_session()
+        async with session:
+            from sqlalchemy import text
+            
+            query = "SELECT COUNT(*) FROM commits WHERE 1=1"
+            params = {}
+            
+            if author:
+                query += " AND author_name LIKE :author"
+                params["author"] = f"%{author}%"
+            
+            if branch:
+                query += " AND branch_name = :branch"
+                params["branch"] = branch
+            
+            result = await session.execute(text(query), params)
+            return result.scalar()
+
+    async def get_commit_authors(self) -> list:
+        """Get list of all commit authors with their commit counts."""
+        session = await self.get_session()
+        async with session:
+            from sqlalchemy import text
+            
+            result = await session.execute(text("""
+                SELECT author_name, author_email, COUNT(*) as commit_count,
+                       MIN(commit_date) as first_commit,
+                       MAX(commit_date) as last_commit
+                FROM commits
+                GROUP BY author_name, author_email
+                ORDER BY commit_count DESC
+            """))
+            
+            rows = result.fetchall()
+            return [
+                {
+                    "author_name": row[0],
+                    "author_email": row[1],
+                    "commit_count": row[2],
+                    "first_commit": row[3].isoformat() if hasattr(row[3], 'isoformat') else str(row[3]) if row[3] else None,
+                    "last_commit": row[4].isoformat() if hasattr(row[4], 'isoformat') else str(row[4]) if row[4] else None
+                }
+                for row in rows
+            ]
+
+    async def get_commit_branches(self) -> list:
+        """Get list of all branches with their commit counts."""
+        session = await self.get_session()
+        async with session:
+            from sqlalchemy import text
+            
+            result = await session.execute(text("""
+                SELECT branch_name, COUNT(*) as commit_count,
+                       MIN(commit_date) as first_commit,
+                       MAX(commit_date) as last_commit
+                FROM commits
+                WHERE branch_name IS NOT NULL
+                GROUP BY branch_name
+                ORDER BY commit_count DESC
+            """))
+            
+            rows = result.fetchall()
+            return [
+                {
+                    "branch_name": row[0],
+                    "commit_count": row[1],
+                    "first_commit": row[2].isoformat() if hasattr(row[2], 'isoformat') else str(row[2]) if row[2] else None,
+                    "last_commit": row[3].isoformat() if hasattr(row[3], 'isoformat') else str(row[3]) if row[3] else None
+                }
+                for row in rows
+            ]
+
+    async def get_recent_activity(self, days: int = 30) -> list:
+        """Get recent commit activity for the specified number of days."""
+        session = await self.get_session()
+        async with session:
+            from sqlalchemy import text
+            
+            result = await session.execute(text("""
+                SELECT DATE(commit_date) as commit_date,
+                       COUNT(*) as commit_count,
+                       COUNT(DISTINCT author_name) as unique_authors,
+                       SUM(lines_added) as total_additions,
+                       SUM(lines_deleted) as total_deletions
+                FROM commits
+                WHERE commit_date >= datetime('now', '-:days days')
+                GROUP BY DATE(commit_date)
+                ORDER BY commit_date DESC
+            """), {"days": days})
+            
+            rows = result.fetchall()
+            return [
+                {
+                    "date": row[0].isoformat() if row[0] else None,
+                    "commit_count": row[1],
+                    "unique_authors": row[2],
+                    "total_additions": row[3] or 0,
+                    "total_deletions": row[4] or 0
+                }
+                for row in rows
+            ]
+
+    async def get_commits_by_author(self) -> list:
+        """Get commit statistics grouped by author."""
+        session = await self.get_session()
+        async with session:
+            from sqlalchemy import text
+            
+            result = await session.execute(text("""
+                SELECT author_name, author_email,
+                       COUNT(*) as commit_count,
+                       SUM(lines_added) as total_additions,
+                       SUM(lines_deleted) as total_deletions,
+                       MIN(commit_date) as first_commit,
+                       MAX(commit_date) as last_commit
+                FROM commits
+                GROUP BY author_name, author_email
+                ORDER BY commit_count DESC
+            """))
+            
+            rows = result.fetchall()
+            return [
+                {
+                    "author_name": row[0],
+                    "author_email": row[1],
+                    "commit_count": row[2],
+                    "total_additions": row[3] or 0,
+                    "total_deletions": row[4] or 0,
+                    "first_commit": row[5].isoformat() if hasattr(row[5], 'isoformat') else str(row[5]) if row[5] else None,
+                    "last_commit": row[6].isoformat() if hasattr(row[6], 'isoformat') else str(row[6]) if row[6] else None
+                }
+                for row in rows
+            ]
+
+    async def get_commits_by_date(self, days: int = 30) -> list:
+        """Get commit statistics grouped by date."""
+        session = await self.get_session()
+        async with session:
+            from sqlalchemy import text
+            
+            result = await session.execute(text("""
+                SELECT DATE(commit_date) as commit_date,
+                       COUNT(*) as commit_count,
+                       COUNT(DISTINCT author_name) as unique_authors,
+                       SUM(lines_added) as total_additions,
+                       SUM(lines_deleted) as total_deletions
+                FROM commits
+                WHERE commit_date >= datetime('now', '-:days days')
+                GROUP BY DATE(commit_date)
+                ORDER BY commit_date DESC
+            """), {"days": days})
+            
+            rows = result.fetchall()
+            return [
+                {
+                    "date": row[0].isoformat() if hasattr(row[0], 'isoformat') else str(row[0]) if row[0] else None,
+                    "commit_count": row[1],
+                    "unique_authors": row[2],
+                    "total_additions": row[3] or 0,
+                    "total_deletions": row[4] or 0
+                }
+                for row in rows
+            ]
+
+    async def get_file_change_stats(self) -> dict:
+        """Get file change statistics."""
+        session = await self.get_session()
+        async with session:
+            from sqlalchemy import text
+            
+            # Get total file changes
+            result = await session.execute(text("""
+                SELECT COUNT(*) as total_files,
+                       SUM(lines_added) as total_additions,
+                       SUM(lines_deleted) as total_deletions
+                FROM commits
+            """))
+            
+            file_stats = result.fetchone()
+            
+            # Get most changed file types
+            result = await session.execute(text("""
+                SELECT 
+                    CASE 
+                        WHEN filename LIKE '%.py' THEN 'Python'
+                        WHEN filename LIKE '%.js' THEN 'JavaScript'
+                        WHEN filename LIKE '%.ts' THEN 'TypeScript'
+                        WHEN filename LIKE '%.java' THEN 'Java'
+                        WHEN filename LIKE '%.cpp' OR filename LIKE '%.cc' OR filename LIKE '%.cxx' THEN 'C++'
+                        WHEN filename LIKE '%.c' THEN 'C'
+                        WHEN filename LIKE '%.go' THEN 'Go'
+                        WHEN filename LIKE '%.rs' THEN 'Rust'
+                        WHEN filename LIKE '%.php' THEN 'PHP'
+                        WHEN filename LIKE '%.rb' THEN 'Ruby'
+                        WHEN filename LIKE '%.sql' THEN 'SQL'
+                        WHEN filename LIKE '%.md' THEN 'Markdown'
+                        WHEN filename LIKE '%.txt' THEN 'Text'
+                        WHEN filename LIKE '%.json' THEN 'JSON'
+                        WHEN filename LIKE '%.xml' THEN 'XML'
+                        WHEN filename LIKE '%.yml' OR filename LIKE '%.yaml' THEN 'YAML'
+                        WHEN filename LIKE '%.html' OR filename LIKE '%.htm' THEN 'HTML'
+                        WHEN filename LIKE '%.css' THEN 'CSS'
+                        WHEN filename LIKE '%.sh' THEN 'Shell'
+                        WHEN filename LIKE '%.bat' THEN 'Batch'
+                        WHEN filename LIKE '%.ps1' THEN 'PowerShell'
+                        ELSE 'Other'
+                    END as file_type,
+                    COUNT(*) as file_count,
+                    SUM(additions) as total_additions,
+                    SUM(deletions) as total_deletions
+                FROM commit_files
+                GROUP BY file_type
+                ORDER BY file_count DESC
+                LIMIT 10
+            """))
+            
+            file_types = [
+                {
+                    "file_type": row[0],
+                    "file_count": row[1],
+                    "total_additions": row[2] or 0,
+                    "total_deletions": row[3] or 0
+                }
+                for row in result.fetchall()
+            ]
+            
+            return {
+                "total_files": file_stats[0] or 0,
+                "total_additions": file_stats[1] or 0,
+                "total_deletions": file_stats[2] or 0,
+                "file_types": file_types
+            }
+
     async def close(self):
         """Close database connections."""
         await self._engine.dispose()
@@ -538,3 +832,4 @@ async def close_db_service():
     if _db_service:
         await _db_service.close()
         _db_service = None
+

@@ -1,1 +1,1 @@
-# Commit Tracker Service - Utils Package
+# Utils Package

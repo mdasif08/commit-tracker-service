@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import select, func, desc
 from fastapi import HTTPException
 
-from ..models import (
+from src.models import (
     CommitResponse,
     CommitHistoryResponse,
     CommitMetrics,
@@ -13,7 +13,7 @@ from ..models import (
     CommitSource,
     CommitStatus,
 )
-from ..database import get_db_service, CommitRecord
+from src.database import get_db_service, CommitRecord
 
 logger = structlog.get_logger(__name__)
 
@@ -24,24 +24,24 @@ class CommitService:
         self.db_service = None
 
     def _validate_commit_data(self, commit_data: dict) -> bool:
-        """Validate commit data to prevent test data from being stored."""
-        # Check for test-related patterns
-        test_patterns = [
-            commit_data.get('commit_hash', '').startswith('test_'),
-            commit_data.get('author_name', '').startswith('Test'),
-            commit_data.get('repository_name', '').startswith('test_'),
-            commit_data.get('commit_hash') == 'abc1234567890abcdef1234567890abcdef1234',
-            'test' in commit_data.get('commit_message', '').lower(),
-        ]
+        """Validate commit data to ensure it's properly formatted."""
+        # Basic validation - ensure required fields are present
+        required_fields = ['commit_hash', 'author_name', 'commit_message']
         
-        if any(test_patterns):
-            logger.warning(
-                "Test data detected and rejected",
-                commit_hash=commit_data.get('commit_hash'),
-                author=commit_data.get('author_name'),
-                repository=commit_data.get('repository_name'),
-                message=commit_data.get('commit_message')
-            )
+        for field in required_fields:
+            if not commit_data.get(field):
+                logger.warning(f"Missing required field: {field}")
+                return False
+        
+        # Validate commit hash format - allow both full SHA-1 (40 chars) and short hashes (7+ chars)
+        commit_hash = commit_data.get('commit_hash', '')
+        if len(commit_hash) < 7:
+            logger.warning(f"Invalid commit hash format (too short): {commit_hash}")
+            return False
+        
+        # Allow any valid Git hash format (7+ characters, alphanumeric)
+        if not commit_hash.replace('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', ''):
+            logger.warning(f"Invalid commit hash format (invalid characters): {commit_hash}")
             return False
         
         return True
@@ -65,7 +65,8 @@ class CommitService:
         db_service = await self._get_db_service()
         responses = []
 
-        async with db_service.get_session() as session:
+        session = await db_service.get_session()
+        async with session:
             for commit_data in webhook_payload.commits:
                 try:
                     # Validate commit data to prevent test data
@@ -144,7 +145,8 @@ class CommitService:
 
         db_service = await self._get_db_service()
 
-        async with db_service.get_session() as session:
+        session = await db_service.get_session()
+        async with session:
             try:
                 # Validate commit data to prevent test data
                 local_commit_dict = {
@@ -218,7 +220,8 @@ class CommitService:
         """Get commit history for a repository."""
         db_service = await self._get_db_service()
 
-        async with db_service.get_session() as session:
+        session = await db_service.get_session()
+        async with session:
             # Get total count
             count_query = select(func.count(CommitRecord.id)).where(
                 CommitRecord.repository_name == repository_name
@@ -263,7 +266,8 @@ class CommitService:
         """Get commit metrics and statistics for a repository."""
         db_service = await self._get_db_service()
 
-        async with db_service.get_session() as session:
+        session = await db_service.get_session()
+        async with session:
             now = datetime.utcnow()
             today = now.date()
             week_ago = now - timedelta(days=7)

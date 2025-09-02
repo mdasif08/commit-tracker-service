@@ -26,9 +26,9 @@ class TestCommitSource:
 
     def test_commit_source_membership(self):
         """Test CommitSource enum membership."""
-        assert "webhook" in CommitSource
-        assert "local" in CommitSource
-        assert "invalid" not in CommitSource
+        assert CommitSource.WEBHOOK in CommitSource
+        assert CommitSource.LOCAL in CommitSource
+        assert "invalid" not in [e.value for e in CommitSource]
 
 
 class TestCommitStatus:
@@ -42,10 +42,10 @@ class TestCommitStatus:
 
     def test_commit_status_membership(self):
         """Test CommitStatus enum membership."""
-        assert "pending" in CommitStatus
-        assert "processed" in CommitStatus
-        assert "failed" in CommitStatus
-        assert "invalid" not in CommitStatus
+        assert CommitStatus.PENDING in CommitStatus
+        assert CommitStatus.PROCESSED in CommitStatus
+        assert CommitStatus.FAILED in CommitStatus
+        assert "invalid" not in [e.value for e in CommitStatus]
 
 
 class TestCommitData:

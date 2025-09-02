@@ -1,0 +1,162 @@
+{
+  "total_tests": 6,
+  "passed": 6,
+  "failed": 0,
+  "success_rate": 100.0,
+  "results": [
+    {
+      "endpoint": "/health",
+      "method": "GET",
+      "status": "PASS",
+      "timestamp": "2025-08-29T00:15:06.299934",
+      "response": {
+        "status": "healthy",
+        "timestamp": "2025-08-28T18:45:06.298683Z",
+        "version": "1.0.0",
+        "database_status": "healthy"
+      },
+      "error": null
+    },
+    {
+      "endpoint": "/api/git/status",
+      "method": "GET",
+      "status": "PASS",
+      "timestamp": "2025-08-29T00:15:08.427750",
+      "response": {
+        "repository_name": "commit-tracker-service",
+        "current_branch": "main",
+        "uncommitted_changes": {
+          "has_changes": true,
+          "modified_files": [
+            "akefile"
+          ],
+          "added_files": [],
+          "deleted_files": []
+        }
+      },
+      "error": null
+    },
+    {
+      "endpoint": "/api/git/commits/recent",
+      "method": "GET",
+      "status": "PASS",
+      "timestamp": "2025-08-29T00:15:10.496497",
+      "response": {
+        "commits": [
+          {
+            "hash": "2d5a36a3983e3b5494c2011b9a291b090b6234b7",
+            "author_name": "mdasif08",
+            "author_email": "mohammadasif24680@gmail.com",
+            "commit_date": "2025-08-27T12:33:51+05:30",
+            "message": "feat: Add real commit test functionality",
+            "parent_hashes": [
+              "9be84230f8d2d93d8325be8be19d96fb22538b22"
+            ]
+          },
+          {
+            "hash": "9be84230f8d2d93d8325be8be19d96fb22538b22",
+            "author_name": "mdasif08",
+            "author_email": "mohammadasif24680@gmail.com",
+            "commit_date": "2025-08-27T11:46:35+05:30",
+            "message": "Test: API testing commit",
+            "parent_hashes": [
+              "7c3d12b52e2ede447ad3e60a590b3d0b6c128868"
+            ]
+          },
+          {
+            "hash": "7c3d12b52e2ede447ad3e60a590b3d0b6c128868",
+            "author_name": "mdasif08",
+            "author_email": "mohammadasif24680@gmail.com",
+            "commit_date": "2025-08-27T11:26:25+05:30",
+            "message": "Testing Commit",
+            "parent_hashes": [
+              "84cb98d0b530536e0dd96271f7e7ed1909c24eeb"
+            ]
+          },
+          {
+            "hash": "84cb98d0b530536e0dd96271f7e7ed1909c24eeb",
+            "author_name": "mdasif08",
+            "author_email": "mohammadasif24680@gmail.com",
+            "commit_date": "2025-08-26T15:56:43+05:30",
+            "message": "Clean up test files - automatic sync working",
+            "parent_hashes": [
+              "754fb66be6629a26f87c4fda829b1e1d83202f6c"
+            ]
+          },
+          {
+            "hash": "754fb66be6629a26f87c4fda829b1e1d83202f6c",
+            "author_name": "mdasif08",
+            "author_email": "mohammadasif24680@gmail.com",
+            "commit_date": "2025-08-26T15:53:59+05:30",
+            "message": "Test automatic Git hook - should auto-sync to database",
+            "parent_hashes": [
+              "d534d2682982afbdd8c501c87b9d2bda2ba54638"
+            ]
+          },
+          {
+            "hash": "d534d2682982afbdd8c501c87b9d2bda2ba54638",
+            "author_name": "mdasif08",
+            "author_email": "mohammadasif24680@gmail.com",
+            "commit_date": "2025-08-26T15:50:43+05:30",
+            "message": "Test automatic commit sync to database",
+            "parent_hashes": [
+              "942571fb1491f34bd6b8713beaedd50dc93d442c"
+            ]
+          },
+          {
+            "hash": "942571fb1491f34bd6b8713beaedd50dc93d442c",
+            "author_name": "mdasif08",
+            "author_email": "mohammadasif24680@gmail.com",
+            "commit_date": "2025-08-26T14:55:55+05:30",
+            "message": "Initial Commit: Commit Tracker Service",
+            "parent_hashes": []
+          }
+        ]
+      },
+      "error": null
+    },
+    {
+      "endpoint": "/api/auth/token",
+      "method": "POST",
+      "status": "PASS",
+      "timestamp": "2025-08-29T00:15:12.730732",
+      "response": {
+        "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc1NjQwODUxMn0.PDxXf5H08kwzNqugq8ZA-6UUwOEbBZ278RY8SnoipTQ",
+        "token_type": "bearer"
+      },
+      "error": null
+    },
+    {
+      "endpoint": "/api/sync/status",
+      "method": "GET",
+      "status": "PASS",
+      "timestamp": "2025-08-29T00:15:14.800946",
+      "response": {
+        "status": "success",
+        "data": {
+          "is_running": false,
+          "sync_interval": 30,
+          "last_sync_time": null,
+          "sync_count": 0,
+          "error_count": 0,
+          "status": "stopped"
+        }
+      },
+      "error": null
+    },
+    {
+      "endpoint": "/api/commits/history",
+      "method": "GET",
+      "status": "PASS",
+      "timestamp": "2025-08-29T00:15:16.884026",
+      "response": {
+        "repository_name": "history",
+        "commits": [],
+        "total_count": 0,
+        "page": 1,
+        "page_size": 50
+      },
+      "error": null
+    }
+  ]
+}

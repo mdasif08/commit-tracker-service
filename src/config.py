@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     # Database settings
     DATABASE_URL: str = Field(
-        default="postgresql+asyncpg://user:password@localhost:5432/commit_tracker",
+        default="postgresql+asyncpg://postgres:password@localhost:5432/commit_tracker",
         env="DATABASE_URL",
     )
 

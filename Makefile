@@ -10,6 +10,9 @@ install: ## Install dependencies
 test: ## Run tests
 	pytest tests/ -v
 
+test-api: ## Test API endpoints
+	python test.py
+
 test-coverage: ## Run tests with coverage
 	pytest tests/ -v --cov=src --cov-report=html --cov-report=term
 
@@ -43,10 +46,10 @@ docker-logs: ## Show Docker logs
 	docker-compose logs -f commit-tracker-service
 
 start: ## Start the service locally
-	uvicorn src.main:app --host 0.0.0.0 --port 8001 --reload
+	python start.py
 
 dev: ## Start in development mode
-	uvicorn src.main:app --host 0.0.0.0 --port 8001 --reload --log-level debug
+	DEBUG=true LOG_LEVEL=debug python start.py
 
 health: ## Check service health
 	curl -f http://localhost:8001/health || echo "Service is not running"

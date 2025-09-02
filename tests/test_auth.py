@@ -34,7 +34,7 @@ class TestAuthentication:
         assert response.status_code == 401
         data = response.json()
         assert "error" in data
-        assert "Incorrect username or password" in data["error"]
+        assert "Authentication failed" in data["error"]
 
     def test_login_nonexistent_user(self, client):
         """Test login with nonexistent user."""
@@ -45,7 +45,7 @@ class TestAuthentication:
         assert response.status_code == 401
         data = response.json()
         assert "error" in data
-        assert "Incorrect username or password" in data["error"]
+        assert "Authentication failed" in data["error"]
 
     def test_protected_endpoint_without_token(self, client):
         """Test accessing protected endpoint without token."""
@@ -54,7 +54,7 @@ class TestAuthentication:
         assert response.status_code == 403
         data = response.json()
         assert "error" in data
-        assert "Not authenticated" in data["error"]
+        assert "Access denied" in data["error"]
 
     def test_protected_endpoint_with_valid_token(self, client):
         """Test accessing protected endpoint with valid token."""
@@ -79,7 +79,7 @@ class TestAuthentication:
         assert response.status_code == 401
         data = response.json()
         assert "error" in data
-        assert "Could not validate credentials" in data["error"]
+        assert "Authentication failed" in data["error"]
 
     def test_token_expiration(self, client):
         """Test token expiration."""
@@ -90,7 +90,7 @@ class TestAuthentication:
         assert response.status_code == 401
         data = response.json()
         assert "error" in data
-        assert "Could not validate credentials" in data["error"]
+        assert "Authentication failed" in data["error"]
 
     def test_user_authentication_service(self):
         """Test authentication service methods."""

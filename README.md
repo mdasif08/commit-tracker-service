@@ -23,6 +23,32 @@ The Commit Tracker Service is designed to be a standalone microservice that can 
 - **JWT Authentication**: Secure API access with JWT tokens
 - **CI/CD Pipeline**: Automated testing, building, and deployment
 
+## Project Structure
+
+```
+commit-tracker-service/
+├── start.py                    # 🚀 Single server startup script
+├── test.py                     # 🧪 Comprehensive API test suite
+├── server_files.py             # 🧹 Cleanup utility script
+├── src/                        # 💻 Main application code
+│   ├── main.py                 # FastAPI application
+│   ├── config.py               # Configuration management
+│   ├── database.py             # Database operations
+│   ├── models.py               # Data models
+│   ├── services/               # Business logic services
+│   └── utils/                  # Utility functions
+├── tests/                      # 🧪 Unit and integration tests
+├── scripts/                    # 🔧 Utility scripts
+├── docs/                       # 📚 Documentation
+├── data/                       # 📊 Sample data and examples
+├── config/                     # ⚙️ Environment configurations
+├── database/                   # 🗄️ Database schemas
+├── requirements.txt            # 📦 Python dependencies
+├── docker-compose.yml          # 🐳 Docker configuration
+├── Dockerfile                  # 🐳 Container definition
+└── README.md                   # 📖 This file
+```
+
 ## Architecture
 
 ```
@@ -43,7 +69,7 @@ The Commit Tracker Service is designed to be a standalone microservice that can 
 ### Prerequisites
 
 - Python 3.11+
-- PostgreSQL 15+
+- PostgreSQL 15+ (or SQLite for development)
 - Git (for local repository monitoring)
 
 ### Installation
@@ -72,13 +98,69 @@ The Commit Tracker Service is designed to be a standalone microservice that can 
 
 5. **Or run locally:**
    ```bash
-   python -m uvicorn src.main:app --host 0.0.0.0 --port 8001 --reload
+   python start.py
    ```
 
-6. **For testing (mock server):**
+6. **For development mode:**
    ```bash
-   python scripts/start_server.py
+   DEBUG=true LOG_LEVEL=debug python start.py
    ```
+
+7. **Test the service:**
+   ```bash
+   python test.py
+   ```
+
+## Usage
+
+### Server Management
+
+```bash
+# Start server (development mode)
+python start.py
+
+# Start server (production mode)
+DEBUG=false python start.py
+
+# Start with custom configuration
+PORT=8002 HOST=127.0.0.1 python start.py
+
+# Using Makefile
+make start          # Development mode
+make dev            # Debug mode
+```
+
+### Testing
+
+```bash
+# Run comprehensive API tests
+python test.py
+
+# Run unit tests
+pytest tests/ -v
+
+# Run tests with coverage
+make test-coverage
+
+# Test API endpoints
+make test-api
+```
+
+### Maintenance
+
+```bash
+# Clean up unwanted files
+python server_files.py
+
+# Format code
+make format
+
+# Lint code
+make lint
+
+# Clean generated files
+make clean
+```
 
 ## Authentication
 

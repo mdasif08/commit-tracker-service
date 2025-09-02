@@ -107,6 +107,124 @@ class TestAutoSyncCommit:
         
         # Mock database service - commit already exists
         mock_db_service = AsyncMock()
+        mock_db_service.get_commit_metadata_by_hash.return_value = {"id": "existing-id"}
+        mock_get_db_service.return_value = mock_db_service
+        
+        # Run the function
+        await auto_sync_latest_commit()
+        
+        # Verify git commands were called
+        assert mock_subprocess_run.call_count == 2
+        
+        # Verify database service was called but commit was not stored
+        mock_db_service.get_commit_metadata_by_hash.assert_called_once()
+        mock_db_service.store_commit_with_diff.assert_not_called()
+
+    @patch('auto_sync_commit.subprocess.run')
+    async def test_auto_sync_git_command_failure(self, mock_subprocess_run):
+        """Test auto sync when git command fails."""
+        # Mock subprocess.run to raise CalledProcessError
+        from subprocess import CalledProcessError
+        mock_subprocess_run.side_effect = CalledProcessError(1, "git rev-parse HEAD")
+        
+        # Run the function - should handle the exception gracefully
+        await auto_sync_latest_commit()
+        
+        # Verify git command was called
+        mock_subprocess_run.assert_called_once()
+
+    @patch('auto_sync_commit.subprocess.run')
+    @patch('auto_sync_commit.get_db_service')
+    async def test_auto_sync_database_error(
+        self, mock_get_db_service, mock_subprocess_run, mock_git_output
+    ):
+        """Test auto sync when database operation fails."""
+        # Mock subprocess.run for git commands
+        mock_subprocess_run.side_effect = [
+            Mock(stdout="abc1234567890abcdef1234567890abcdef1234\n", returncode=0),
+            Mock(stdout=mock_git_output + "\n", returncode=0)
+        ]
+        
+        # Mock database service to raise exception
+        mock_db_service = AsyncMock()
+        mock_db_service.get_commit_metadata_by_hash.side_effect = Exception("Database error")
+        mock_get_db_service.return_value = mock_db_service
+        
+        # Run the function - should handle the exception gracefully
+        await auto_sync_latest_commit()
+        
+        # Verify git commands were called
+        assert mock_subprocess_run.call_count == 2
+
+    @patch('auto_sync_commit.subprocess.run')
+    @patch('auto_sync_commit.get_db_service')
+    @patch('auto_sync_commit.GitUtils')
+    async def test_auto_sync_git_utils_error(
+        self, mock_git_utils, mock_get_db_service, mock_subprocess_run, 
+        mock_git_output
+    ):
+        """Test auto sync when GitUtils operation fails."""
+        # Mock subprocess.run for git commands
+        mock_subprocess_run.side_effect = [
+            Mock(stdout="abc1234567890abcdef1234567890abcdef1234\n", returncode=0),
+            Mock(stdout=mock_git_output + "\n", returncode=0)
+        ]
+        
+        # Mock database service
+        mock_db_service = AsyncMock()
+        mock_db_service.get_commit_metadata_by_hash.return_value = None
+        mock_get_db_service.return_value = mock_db_service
+        
+        # Mock GitUtils to raise exception
+        mock_git_utils_instance = Mock()
+        mock_git_utils_instance.get_commit_diff.side_effect = Exception("Git error")
+        mock_git_utils.return_value = mock_git_utils_instance
+        
+        # Run the function - should handle the exception gracefully
+        await auto_sync_latest_commit()
+        
+        # Verify git commands were called
+        assert mock_subprocess_run.call_count == 2
+
+    @patch('auto_sync_commit.subprocess.run')
+    @patch('auto_sync_commit.get_db_service')
+    @patch('auto_sync_commit.GitUtils')
+    async def test_auto_sync_store_commit_error(
+        self, mock_git_utils, mock_get_db_service, mock_subprocess_run, 
+        mock_git_output, mock_diff_data
+    ):
+        """Test auto sync when storing commit fails."""
+        # Mock subprocess.run for git commands
+        mock_subprocess_run.side_effect = [
+            Mock(stdout="abc1234567890abcdef1234567890abcdef1234\n", returncode=0),
+            Mock(stdout=mock_git_output + "\n", returncode=0)
+        ]
+        
+        # Mock database service
+        mock_db_service = AsyncMock()
+        mock_db_service.get_commit_metadata_by_hash.return_value = None
+        mock_db_service.store_commit_with_diff.side_effect = Exception("Store error")
+        mock_get_db_service.return_value = mock_db_service
+        
+        # Mock GitUtils
+        mock_git_utils_instance = Mock()
+        mock_git_utils_instance.get_commit_diff.return_value = mock_diff_data
+        mock_git_utils.return_value = mock_git_utils_instance
+        
+        # Run the function - should handle the exception gracefully
+        await auto_sync_latest_commit()
+        
+        # Verify git commands were called
+        assert mock_subprocess_run.call_count == 2
+        """Test auto sync when commit already exists in database."""
+        # Mock subprocess.run for git commands
+        mock_subprocess_run.side_effect = [
+            Mock(stdout="abc1234567890abcdef1234567890abcdef1234\n", returncode=0),
+            Mock(stdout=mock_git_output + "\n", returncode=0)
+        ]
+        
+        # Mock database service - commit already exists
+        mock_db_service = AsyncMock()
         mock_db_service.get_commit_metadata_by_hash.return_value = {
             "id": "existing-id",
             "commit_hash": "abc1234567890abcdef1234567890abcdef1234"

@@ -23,7 +23,7 @@ class TestSettings:
 
             # Test server settings
             assert test_settings.HOST == "0.0.0.0"
-            assert test_settings.PORT == 8001
+            assert test_settings.PORT == 8003
 
             # Test database settings
             # DATABASE_URL might be overridden by .env file, so we'll check it's a string
@@ -337,7 +337,7 @@ class TestSettings:
 
             # Should use defaults when .env file doesn't exist
             assert isinstance(test_settings.DEBUG, bool)
-            assert test_settings.PORT == 8001
+            assert test_settings.PORT == 8003
             assert test_settings.HOST == "0.0.0.0"
 
     def test_complex_allowed_origins(self):

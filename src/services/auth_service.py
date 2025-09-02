@@ -6,13 +6,17 @@ from passlib.context import CryptContext
 from fastapi import HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-from ..config import settings
-from ..models import User, UserInDB, TokenData
+from src.config import settings
+from src.models import User, UserInDB, TokenData
 
 logger = structlog.get_logger(__name__)
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Password hashing - Use sha256_crypt as fallback for bcrypt issues
+try:
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+except Exception:
+    # Fallback to sha256_crypt if bcrypt has issues
+    pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
 
 # JWT settings
 SECRET_KEY = settings.SECRET_KEY
@@ -36,6 +40,13 @@ fake_users_db = {
             "full_name": "Developer User",
                 "email": "dev@example.com",
                 "hashed_password": pwd_context.hash("dev123"),
+                "disabled": False,
+    },
+    "mdasif08": {
+        "username": "mdasif08",
+            "full_name": "Mohammad Asif",
+                "email": "mohammadasif24680@gmail.com",
+                "hashed_password": pwd_context.hash("Asif@24680"),
                 "disabled": False,
     },
 }

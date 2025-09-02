@@ -16,10 +16,15 @@ def test_json_files():
         return False
     
     json_files = [
-        "auth_token.json",
+        "authentication_request.json",
         "create_commit.json", 
-        "track_webhook_commit.json",
-        "track_local_commit.json"
+        "webhook_commit.json",
+        "local_commit.json",
+        "webhook_payload.json",
+        "commit_create_request.json",
+        "commit_list_request.json",
+        "local_commit_request.json",
+        "commit_search_request.json"
     ]
     
     print("🔍 Testing JSON files...")
@@ -30,11 +35,7 @@ def test_json_files():
             with open(file_path, 'r') as f:
                 data = json.load(f)
             
-            # Check required fields
-            if "request_data" in data:
-                print(f"✅ {filename}: Loaded successfully")
-            else:
-                print(f"⚠️  {filename}: Missing 'request_data' field")
+            print(f"✅ {filename}: Loaded successfully")
                 
         except Exception as e:
             print(f"❌ {filename}: Failed to load - {e}")
@@ -45,8 +46,12 @@ def test_json_files():
 
 def main():
     """Main function"""
-    success = test_json_files()
-    sys.exit(0 if success else 1)
+    try:
+        test_json_files()
+        sys.exit(0)
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

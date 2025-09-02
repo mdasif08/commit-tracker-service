@@ -17,10 +17,10 @@ def test_health():
         print(f"✅ Health Check: {response.status_code}")
         if response.status_code == 200:
             print(f"   Response: {response.json()}")
-        return response.status_code == 200
+        assert response.status_code == 200, f"Expected status 200, got {response.status_code}"
     except requests.exceptions.RequestException as e:
         print(f"❌ Health Check Failed: {e}")
-        return False
+        raise
 
 def test_root():
     """Test root endpoint"""
@@ -29,10 +29,10 @@ def test_root():
         print(f"✅ Root Endpoint: {response.status_code}")
         if response.status_code == 200:
             print(f"   Response: {response.json()}")
-        return response.status_code == 200
+        assert response.status_code == 200, f"Expected status 200, got {response.status_code}"
     except requests.exceptions.RequestException as e:
         print(f"❌ Root Endpoint Failed: {e}")
-        return False
+        raise
 
 def test_commits():
     """Test commits endpoint"""
@@ -42,10 +42,10 @@ def test_commits():
         if response.status_code == 200:
             data = response.json()
             print(f"   Total commits: {data.get('total', 0)}")
-        return response.status_code == 200
+        assert response.status_code == 200, f"Expected status 200, got {response.status_code}"
     except requests.exceptions.RequestException as e:
         print(f"❌ Commits Endpoint Failed: {e}")
-        return False
+        raise
 
 def test_git_status():
     """Test git status endpoint"""
@@ -54,10 +54,10 @@ def test_git_status():
         print(f"✅ Git Status: {response.status_code}")
         if response.status_code == 200:
             print(f"   Response: {response.json()}")
-        return response.status_code == 200
+        assert response.status_code == 200, f"Expected status 200, got {response.status_code}"
     except requests.exceptions.RequestException as e:
         print(f"❌ Git Status Failed: {e}")
-        return False
+        raise
 
 def cleanup_test_data():
     """Clean up test data from database using direct SQL"""
@@ -153,8 +153,14 @@ def main():
     
     for test_name, test_func in tests:
         print(f"\n🔍 Testing {test_name}...")
-        if test_func():
+        try:
+            test_func()
             passed += 1
+            print("✅ Test passed")
+        except AssertionError as e:
+            print(f"❌ Test failed: {e}")
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Test failed: {e}")
         print()
     
     # Clean up again after tests to ensure no test data remains

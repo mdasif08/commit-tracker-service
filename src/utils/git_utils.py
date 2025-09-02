@@ -305,6 +305,99 @@ class GitUtils:
             logger.error(f"Failed to get diff for {commit_hash}", error=str(e))
             return {"diff_content": "", "file_diffs": {}}
 
+    def get_git_log(self, count: int = 10, file_path: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get git log with optional file filter."""
+        if not self._is_git_repo:
+            return []
+
+        try:
+            command = ["log", f"-{count}", "--pretty=format:%H|%an|%ae|%aI|%s"]
+            if file_path:
+                command.extend(["--", file_path])
+
+            output = self._run_git_command(command)
+            commits = []
+
+            for line in output.split("\n"):
+                if line.strip():
+                    parts = line.split("|")
+                    if len(parts) >= 5:
+                        commits.append({
+                            "hash": parts[0],
+                            "author_name": parts[1],
+                            "author_email": parts[2],
+                            "commit_date": parts[3],
+                            "message": parts[4]
+                        })
+
+            return commits
+        except Exception as e:
+            logger.error("Failed to get git log", error=str(e))
+            return []
+
+    def get_file_history(self, file_path: str, count: int = 10) -> List[Dict[str, Any]]:
+        """Get commit history for a specific file."""
+        return self.get_git_log(count, file_path)
+
+    def get_branch_list(self) -> List[str]:
+        """Get list of all branches."""
+        if not self._is_git_repo:
+            return []
+
+        try:
+            output = self._run_git_command(["branch", "-a"])
+            branches = []
+            for line in output.split("\n"):
+                if line.strip():
+                    # Remove the asterisk and spaces from current branch
+                    branch = line.strip().replace("* ", "")
+                    # Remove remote prefix if present
+                    if branch.startswith("remotes/"):
+                        branch = branch[8:]  # Remove "remotes/"
+                    branches.append(branch)
+            return branches
+        except Exception as e:
+            logger.error("Failed to get branch list", error=str(e))
+            return []
+
+    def get_remote_info(self) -> Dict[str, Any]:
+        """Get remote repository information."""
+        if not self._is_git_repo:
+            return {}
+
+        try:
+            remotes = {}
+            output = self._run_git_command(["remote", "-v"])
+            
+            for line in output.split("\n"):
+                if line.strip():
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        remote_name = parts[0]
+                        remote_url = parts[1]
+                        remote_type = parts[2] if len(parts) > 2 else "fetch"
+                        
+                        if remote_name not in remotes:
+                            remotes[remote_name] = {"url": remote_url, "type": remote_type}
+                        else:
+                            remotes[remote_name]["push_type"] = remote_type
+
+            return remotes
+        except Exception as e:
+            logger.error("Failed to get remote info", error=str(e))
+            return {}
+
+    def get_git_config(self, key: str) -> Optional[str]:
+        """Get git configuration value."""
+        if not self._is_git_repo:
+            return None
+
+        try:
+            return self._run_git_command(["config", "--get", key])
+        except Exception as e:
+            logger.error(f"Failed to get git config for {key}", error=str(e))
+            return None
+
     def _parse_file_diffs(self, commit_hash: str) -> Dict[str, Any]:
         """Parse file-by-file diff information with detailed analysis."""
         try:
@@ -432,5 +525,10 @@ class GitUtils:
 
         return 'low'
 
-# Global git utils instance
-git_utils = GitUtils()
+# Global git utils instance - point to the correct repository path
+import os
+# The git_utils.py is in src/utils/, so we need to go up 2 levels to get to commit-tracker-service/
+current_dir = os.path.dirname(__file__)  # src/utils/
+src_dir = os.path.dirname(current_dir)   # src/
+repo_path = os.path.dirname(src_dir)     # commit-tracker-service/
+git_utils = GitUtils(repo_path)
