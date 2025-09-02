@@ -79,7 +79,7 @@ async def auto_sync_latest_commit():
         }
         
         # Store in database
-        commit_id = await db_service.store_commit_with_diff(commit_record)
+        commit_id = await db_service.store_commit(commit_record)
         print(f"✅ Auto-synced commit: {commit_hash[:8]} - {message}")
         
     except Exception as e:

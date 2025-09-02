@@ -137,7 +137,7 @@ async def lifespan(app: FastAPI):
 
     # Start auto-sync service
     try:
-        await auto_sync_service.start_auto_sync(interval=30)
+        asyncio.create_task(auto_sync_service.start())
         logger.info("Auto-sync service started successfully")
     except Exception as e:
         logger.error("Failed to start auto-sync service", error=str(e))
@@ -147,7 +147,7 @@ async def lifespan(app: FastAPI):
 
     # Stop auto-sync service
     try:
-        await auto_sync_service.stop_auto_sync()
+        await auto_sync_service.stop()
         logger.info("Auto-sync service stopped")
     except Exception as e:
         logger.error("Error stopping auto-sync service", error=str(e))
@@ -1115,6 +1115,17 @@ async def get_git_statistics():
 # AUTO-SYNC ENDPOINTS
 # ============================================================================
 
+@app.on_event("startup")
+async def startup_event():
+    """Startup event handler."""
+    try:
+        # Start auto-sync service
+        asyncio.create_task(auto_sync_service.start())
+        logger.info("Auto-sync service started successfully")
+    except Exception as e:
+        logger.error("Failed to start auto-sync service", error=str(e))
+
+
 @app.post("/api/sync/start")
 async def start_auto_sync(
     sync_interval: int = Query(30, ge=10, le=300, description="Sync interval in seconds"),
@@ -1122,8 +1133,8 @@ async def start_auto_sync(
 ):
     """Start automatic sync process."""
     try:
-        success = await auto_sync_service.start_auto_sync(sync_interval)
-        if success:
+        if not auto_sync_service.is_running:
+            asyncio.create_task(auto_sync_service.start())
             return {
                 "status": "success",
                 "message": f"Auto-sync started with {sync_interval}s interval",
@@ -1132,7 +1143,7 @@ async def start_auto_sync(
         else:
             return ErrorResponse(
                 error="Failed to start auto-sync",
-                detail="Auto-sync service is already running or failed to start",
+                detail="Auto-sync service is already running",
                 timestamp=datetime.now(timezone.utc),
                 fix_code="Check if auto-sync is already running",
                 fix_command="GET /api/sync/status",
@@ -1157,8 +1168,8 @@ async def start_auto_sync(
 async def stop_auto_sync(current_user: User = Depends(get_current_user)):
     """Stop automatic sync process."""
     try:
-        success = await auto_sync_service.stop_auto_sync()
-        if success:
+        if auto_sync_service.is_running:
+            await auto_sync_service.stop()
             return {
                 "status": "success",
                 "message": "Auto-sync stopped successfully",

@@ -74,11 +74,11 @@ class CommitRecord(Base):
 class CommitFileRecord(Base):
     """Database model for individual file changes in commits."""
 
-    __tablename__ = "commit_files"
+    __tablename__ = "commits_files"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     commit_id = Column(UUID(as_uuid=True), ForeignKey("commits.id", ondelete="CASCADE"), nullable=False, index=True)
-    filename = Column(String(500), nullable=False, index=True)
+    file_name = Column(String(500), nullable=False, index=True)  # Changed from filename to file_name
     file_path = Column(String(1000), nullable=True)
     file_extension = Column(String(20), nullable=True, index=True)
     status = Column(String(20), nullable=False, index=True)  # 'added', 'modified', 'deleted', 'renamed'
@@ -153,7 +153,7 @@ class DatabaseService:
 
                 file_record = CommitFileRecord(
                     commit_id=commit_record.id,
-                    filename=filename,
+                    file_name=filename,
                     file_path=filename,
                     file_extension=file_extension,
                     status=file_data.get('status', 'modified'),
@@ -199,6 +199,10 @@ class DatabaseService:
             'txt': 'Text'
         }
         return language_map.get(file_extension.lower(), 'Unknown')
+
+    async def store_commit(self, commit_data: dict) -> str:
+        """Alias for store_commit_with_diff to maintain compatibility."""
+        return await self.store_commit_with_diff(commit_data)
 
     async def get_commit_metadata(self, commit_id: str) -> Optional[dict]:
         """Get commit metadata (fast query, no diff content)."""
@@ -407,17 +411,17 @@ class DatabaseService:
         async with session:
             from sqlalchemy import text
             result = await session.execute(
-                text("SELECT id, filename, file_path, file_extension, status, "
+                text("SELECT id, file_name, file_path, file_extension, status, "
                 "additions, deletions, diff_content, file_size_before, file_size_after, "
                 "language, complexity_score, security_risk_level, created_at "
-                "FROM commit_files WHERE commit_id = :commit_id ORDER BY filename"),
+                "FROM commits_files WHERE commit_id = :commit_id ORDER BY file_name"),
                 {"commit_id": commit_id}
             )
             rows = result.fetchall()
             return [
                 {
                     "id": str(row[0]),
-                        "filename": row[1],
+                        "file_name": row[1],
                             "file_path": row[2],
                             "file_extension": row[3],
                             "status": row[4],
@@ -441,7 +445,7 @@ class DatabaseService:
             from sqlalchemy import text
             result = await session.execute(
                 text("SELECT cf.*, c.commit_hash, c.commit_message, c.author_name "
-                "FROM commit_files cf "
+                "FROM commits_files cf "
                 "JOIN commits c ON cf.commit_id = c.id "
                 "WHERE cf.id = :file_id"),
                 {"file_id": file_id}
@@ -775,7 +779,7 @@ class DatabaseService:
                     COUNT(*) as file_count,
                     SUM(additions) as total_additions,
                     SUM(deletions) as total_deletions
-                FROM commit_files
+                FROM commits_files
                 GROUP BY file_type
                 ORDER BY file_count DESC
                 LIMIT 10
@@ -797,6 +801,47 @@ class DatabaseService:
                 "total_deletions": file_stats[2] or 0,
                 "file_types": file_types
             }
+
+    async def delete_commit(self, commit_hash: str) -> bool:
+        """Delete a commit and its associated file records."""
+        session = await self.get_session()
+        async with session:
+            try:
+                from sqlalchemy import text
+                
+                # First, get the commit ID
+                result = await session.execute(
+                    text("SELECT id FROM commits WHERE commit_hash = :hash"),
+                    {"hash": commit_hash}
+                )
+                commit_row = result.fetchone()
+                
+                if not commit_row:
+                    logger.warning(f"Commit {commit_hash[:8]} not found for deletion")
+                    return False
+                
+                commit_id = commit_row[0]
+                
+                # Delete associated file records first
+                await session.execute(
+                    text("DELETE FROM commits_files WHERE commit_id = :commit_id"),
+                    {"commit_id": commit_id}
+                )
+                
+                # Delete the commit
+                await session.execute(
+                    text("DELETE FROM commits WHERE id = :commit_id"),
+                    {"commit_id": commit_id}
+                )
+                
+                await session.commit()
+                logger.info(f"Successfully deleted commit {commit_hash[:8]} and associated files")
+                return True
+                
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Failed to delete commit {commit_hash[:8]}: {str(e)}")
+                return False
 
     async def close(self):
         """Close database connections."""
