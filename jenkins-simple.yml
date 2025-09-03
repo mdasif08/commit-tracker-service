@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  jenkins:
+    image: jenkinsci/blueocean:latest
+    container_name: jenkins
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker
+      - /usr/local/bin/docker:/usr/local/bin/docker
+      - /opt/homebrew/bin/docker:/opt/homebrew/bin/docker
+    user: root
+    restart: unless-stopped
+    privileged: true
+    environment:
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  jenkins_home:

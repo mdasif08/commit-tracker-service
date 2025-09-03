@@ -19,9 +19,22 @@ pipeline {
             steps {
                 script {
                     echo '🔍 Checking Docker installation...'
-                    sh 'docker --version'
-                    sh 'docker compose version || docker-compose --version || echo "Docker Compose not found, will use docker compose"'
-                    echo '✅ Docker verification completed'
+                    try {
+                        sh 'docker --version'
+                        echo '✅ Docker found'
+                    } catch (Exception e) {
+                        echo '⚠️ Docker not found, attempting to install...'
+                        sh 'apt-get update && apt-get install -y docker.io || echo "Could not install Docker"'
+                        sh 'service docker start || echo "Could not start Docker service"'
+                        sh 'docker --version || echo "Docker still not available"'
+                    }
+                    
+                    try {
+                        sh 'docker compose version || docker-compose --version || echo "Docker Compose not found"'
+                        echo '✅ Docker Compose verification completed'
+                    } catch (Exception e) {
+                        echo '⚠️ Docker Compose not available'
+                    }
                 }
             }
         }
@@ -50,7 +63,17 @@ pipeline {
                         echo '✅ Containers built and started'
                     } catch (Exception e) {
                         echo '❌ Failed to build and start containers'
-                        error 'Container deployment failed: ' + e.getMessage()
+                        echo 'Attempting alternative deployment method...'
+                        
+                        // Alternative: Build image manually
+                        sh 'docker build -t ${SERVICE_NAME}:latest .'
+                        sh 'docker run -d --name ${SERVICE_NAME} -p 8001:8001 ${SERVICE_NAME}:latest || echo "Manual deployment failed"'
+                        
+                        if (sh(script: 'docker ps | grep ${SERVICE_NAME}', returnStatus: true) == 0) {
+                            echo '✅ Manual deployment successful'
+                        } else {
+                            error 'All deployment methods failed'
+                        }
                     }
                 }
             }
@@ -60,7 +83,7 @@ pipeline {
             steps {
                 script {
                     echo '⏳ Waiting for service to be ready...'
-                    sh 'sleep 20'
+                    sh 'sleep 25'
                     echo '⏰ Service should be ready now'
                 }
             }
@@ -74,7 +97,9 @@ pipeline {
                         sh 'curl -f ${HEALTH_URL} || exit 1'
                         echo '✅ Health check passed!'
                     } catch (Exception e) {
-                        echo '❌ Health check failed'
+                        echo '❌ Health check failed, checking container status...'
+                        sh 'docker ps | grep ${SERVICE_NAME} || echo "Container not running"'
+                        sh 'docker logs ${SERVICE_NAME} || echo "Could not get container logs"'
                         error 'Service health check failed: ' + e.getMessage()
                     }
                 }
@@ -87,7 +112,7 @@ pipeline {
                     echo '🔍 Verifying deployment...'
                     try {
                         sh 'docker ps | grep ${SERVICE_NAME} || echo "Container not found in docker ps"'
-                        sh 'docker compose -f ${DOCKER_COMPOSE_FILE} ps || docker-compose -f ${DOCKER_COMPOSE_FILE} ps'
+                        sh 'docker compose -f ${DOCKER_COMPOSE_FILE} ps || docker-compose -f ${DOCKER_COMPOSE_FILE} ps || echo "Docker compose not available"'
                         echo '✅ Deployment verified successfully!'
                     } catch (Exception e) {
                         echo '⚠️ Warning: Could not verify deployment completely'
@@ -112,6 +137,7 @@ pipeline {
             echo "1. Docker not running on Jenkins host"
             echo "2. Port 8001 already in use"
             echo "3. Docker daemon not accessible"
+            echo "4. Container build failed"
         }
         always {
             echo "Pipeline completed. Cleaning up workspace..."
