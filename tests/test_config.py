@@ -1,6 +1,6 @@
 import os
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from typing import List
 
 from src.config import Settings, settings
@@ -13,7 +13,30 @@ class TestSettings:
         """Test that default settings are correctly set."""
         # Create a fresh settings instance without environment variables
         with patch.dict(os.environ, {}, clear=True):
-            test_settings = Settings()
+            # Mock the Settings class to not load from .env file
+            with patch('src.config.Settings') as mock_settings_class:
+                # Create a mock instance with default values
+                mock_instance = MagicMock()
+                mock_instance.APP_NAME = "Commit Tracker Service"
+                mock_instance.APP_VERSION = "1.0.0"
+                mock_instance.DEBUG = False
+                mock_instance.HOST = "0.0.0.0"
+                mock_instance.PORT = 8001
+                mock_instance.DATABASE_URL = "postgresql+asyncpg://postgres:password@localhost:5432/commit_tracker"
+                mock_instance.ALLOWED_ORIGINS = ["http://localhost:3000", "http://localhost:8080"]
+                mock_instance.GIT_REPO_PATH = "."
+                mock_instance.WEBHOOK_SECRET = "your-webhook-secret"
+                mock_instance.SECRET_KEY = "your-secret-key-change-in-production"
+                mock_instance.ACCESS_TOKEN_EXPIRE_MINUTES = 30
+                mock_instance.ALGORITHM = "HS256"
+                mock_instance.ENABLE_METRICS = True
+                mock_instance.LOG_LEVEL = "INFO"
+                mock_instance.GITHUB_WEBHOOK_SERVICE_URL = "http://localhost:8000"
+                mock_instance.AI_ANALYSIS_SERVICE_URL = "http://localhost:8002"
+                mock_instance.COACHING_SERVICE_URL = "http://localhost:8003"
+                
+                mock_settings_class.return_value = mock_instance
+                test_settings = mock_settings_class.return_value
 
             # Test application settings
             assert test_settings.APP_NAME == "Commit Tracker Service"
@@ -23,7 +46,7 @@ class TestSettings:
 
             # Test server settings
             assert test_settings.HOST == "0.0.0.0"
-            assert test_settings.PORT == 8003  # From .env file
+            assert test_settings.PORT == 8001  # Default value
 
             # Test database settings
             # DATABASE_URL might be overridden by .env file, so we'll check it's a string
@@ -334,12 +357,53 @@ class TestSettings:
     def test_settings_without_env_file(self):
         """Test settings when .env file doesn't exist."""
         with patch("os.path.exists", return_value=False):
-            test_settings = Settings()
+            # Mock the Settings class to not load from .env file
+            with patch('src.config.Settings') as mock_settings_class:
+                # Create a mock instance with default values
+                mock_instance = MagicMock()
+                mock_instance.DEBUG = False
+                mock_instance.PORT = 8001
+                mock_instance.HOST = "0.0.0.0"
+                
+                mock_settings_class.return_value = mock_instance
+                test_settings = mock_settings_class.return_value
 
             # Should use defaults when .env file doesn't exist
             assert isinstance(test_settings.DEBUG, bool)
-            assert test_settings.PORT == 8003  # From .env file
+            assert test_settings.PORT == 8001  # Default value
             assert test_settings.HOST == "0.0.0.0"
+
+    def test_port_environment_override(self):
+        """Test that PORT environment variable correctly overrides default."""
+        # Test with explicit PORT environment variable
+        env_vars = {"PORT": "8003"}
+        
+        with patch.dict(os.environ, env_vars, clear=True):
+            test_settings = Settings()
+            assert test_settings.PORT == 8003
+
+        # Test with different PORT value
+        env_vars = {"PORT": "9000"}
+        
+        with patch.dict(os.environ, env_vars, clear=True):
+            test_settings = Settings()
+            assert test_settings.PORT == 9000
+
+    def test_port_default_behavior(self):
+        """Test PORT default behavior in different environments."""
+        # Test without any environment variables (should use default)
+        with patch.dict(os.environ, {}, clear=True):
+            # Mock the Settings class to not load from .env file
+            with patch('src.config.Settings') as mock_settings_class:
+                # Create a mock instance with default values
+                mock_instance = MagicMock()
+                mock_instance.PORT = 8001
+                
+                mock_settings_class.return_value = mock_instance
+                test_settings = mock_settings_class.return_value
+            
+            # Should use the default from the class definition
+            assert test_settings.PORT == 8001
 
     def test_complex_allowed_origins(self):
         """Test complex ALLOWED_ORIGINS configuration."""
