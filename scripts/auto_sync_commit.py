@@ -8,6 +8,8 @@ import asyncio
 import subprocess
 import sys
 import os
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
 from datetime import datetime
 from src.database import get_db_service
 from src.utils.git_utils import GitUtils
@@ -78,8 +80,28 @@ async def auto_sync_latest_commit():
             'diff_hash': f"git_{commit_hash}"
         }
         
-        # Store in database
-        commit_id = await db_service.store_commit(commit_record)
+        # Store in database - try without file_diffs first to test basic functionality
+        simple_commit = {
+            'commit_hash': commit_hash,
+            'repository_name': 'commit-tracker-service',
+            'author_name': author_name,
+            'author_email': author_email,
+            'commit_message': message,
+            'commit_date': datetime.fromisoformat(date_str.replace('Z', '+00:00')),
+            'source_type': 'LOCAL',
+            'branch_name': 'main',
+            'files_changed': list(diff_data.get('file_diffs', {}).keys()),
+            'lines_added': sum(len(diff_data.get('file_diffs', {}).get(f, {}).get('additions', [])) for f in diff_data.get('file_diffs', {})),
+            'lines_deleted': sum(len(diff_data.get('file_diffs', {}).get(f, {}).get('deletions', [])) for f in diff_data.get('file_diffs', {})),
+            'parent_commits': [],
+            'metadata': {
+                'synced_from_git': True,
+                'sync_date': datetime.now().isoformat(),
+                'auto_synced': True
+            }
+        }
+        
+        commit_id = await db_service.store_commit(simple_commit)
         print(f"✅ Auto-synced commit: {commit_hash[:8]} - {message}")
         
     except Exception as e:

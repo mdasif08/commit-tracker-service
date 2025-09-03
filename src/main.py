@@ -280,6 +280,19 @@ async def health_check():
         )
 
 
+# Debug endpoint to check settings
+@app.get("/debug")
+async def debug_info():
+    """Debug endpoint to check current settings."""
+    return {
+        "debug": settings.DEBUG,
+        "app_name": settings.APP_NAME,
+        "app_version": settings.APP_VERSION,
+        "docs_url": "/api/docs" if settings.DEBUG else None,
+        "redoc_url": "/api/redoc" if settings.DEBUG else None,
+        "database_url": str(settings.DATABASE_URL).replace(str(settings.DATABASE_URL).split('@')[0].split('//')[1], '***') if '@' in str(settings.DATABASE_URL) else str(settings.DATABASE_URL)
+    }
+
 # Metrics endpoint
 @app.get("/metrics")
 async def metrics():
@@ -1115,15 +1128,7 @@ async def get_git_statistics():
 # AUTO-SYNC ENDPOINTS
 # ============================================================================
 
-@app.on_event("startup")
-async def startup_event():
-    """Startup event handler."""
-    try:
-        # Start auto-sync service
-        asyncio.create_task(auto_sync_service.start())
-        logger.info("Auto-sync service started successfully")
-    except Exception as e:
-        logger.error("Failed to start auto-sync service", error=str(e))
+# Startup event is now handled by the lifespan context manager above
 
 
 @app.post("/api/sync/start")

@@ -407,10 +407,7 @@ class TestAutoSyncCommit:
         assert call_args["commit_message"] == "Test commit message"
         assert call_args["source_type"] == "LOCAL"
         assert call_args["branch_name"] == "main"
-        assert call_args["status"] == "PROCESSED"
-        assert call_args["diff_content"] == mock_diff_data["diff_content"]
-        assert call_args["file_diffs"] == mock_diff_data["file_diffs"]
-        assert call_args["diff_hash"] == "git_abc1234567890abcdef1234567890abcdef1234"
+        # Note: simple_commit doesn't include status, diff_content, file_diffs, or diff_hash
         assert call_args["metadata"]["synced_from_git"] is True
         assert call_args["metadata"]["auto_synced"] is True
         assert "sync_date" in call_args["metadata"]

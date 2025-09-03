@@ -66,7 +66,7 @@ class AutoSyncService:
             for commit_data in commits:
                 try:
                     # Check if commit already exists
-                    existing_commit = await self.db_service.get_commit_by_hash(commit_data["hash"])
+                    existing_commit = await self.db_service.get_commit_metadata_by_hash(commit_data["hash"])
                     if existing_commit:
                         logger.debug(f"Commit {commit_data['hash'][:8]} already exists, skipping")
                         continue

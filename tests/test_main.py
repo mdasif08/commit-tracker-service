@@ -145,6 +145,7 @@ class TestLifespan:
         
         mock_request = MagicMock(spec=Request)
         mock_request.url.path = "/test"
+        mock_request.method = "GET"
         
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -152,10 +153,15 @@ class TestLifespan:
         async def mock_call_next(request):
             return mock_response
         
-        mock_latency = MagicMock()
-        mock_count = MagicMock()
-        
-        with patch("src.main.REQUEST_LATENCY", mock_latency), patch("src.main.REQUEST_COUNT", mock_count):
+        # Mock the metrics properly to avoid RuntimeWarnings
+        with patch("src.main.REQUEST_LATENCY") as mock_latency, \
+             patch("src.main.REQUEST_COUNT") as mock_count, \
+             patch("src.main.time.time") as mock_time:
+            
+            mock_latency.observe = MagicMock()
+            mock_count.labels.return_value.inc = MagicMock()
+            mock_time.side_effect = [100.0, 100.1]  # start_time, end_time
+
             response = await track_requests(mock_request, mock_call_next)
             
             assert response == mock_response
