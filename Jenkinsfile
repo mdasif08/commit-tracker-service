@@ -55,20 +55,14 @@ pipeline {
                 sh '''
                     echo "🚀 Deploying application INTO Docker..."
                     
-                    # Check Docker is available
-                    docker --version
-                    docker-compose --version
-                    
-                    # Stop any existing containers
-                    echo "Stopping existing containers..."
-                    docker-compose down --remove-orphans || echo "No existing containers to stop"
-                    
-                    # Clean up any orphaned containers
-                    docker container prune -f || echo "No containers to prune"
-                    
-                    # Build and start services
-                    echo "Building and starting services..."
-                    docker-compose up -d --build --force-recreate
+                    # Use Docker-in-Docker to run docker-compose
+                    docker run --rm -v $(pwd):/workspace -w /workspace -v /var/run/docker.sock:/var/run/docker.sock docker/compose:latest bash -c "
+                        echo 'Stopping existing containers...' &&
+                        docker-compose down --remove-orphans || echo 'No existing containers to stop' &&
+                        echo 'Building and starting services...' &&
+                        docker-compose up -d --build --force-recreate &&
+                        echo 'Services started successfully'
+                    "
                     
                     # Wait for services to be ready
                     echo "Waiting for services to start..."
@@ -94,21 +88,21 @@ pipeline {
                 sh '''
                     echo "🔍 Verifying Docker deployment..."
                     
-                    # Check running containers
-                    echo "Checking running containers..."
-                    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+                    # Use Docker-in-Docker to check containers
+                    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock docker:latest bash -c "
+                        echo 'Checking running containers...' &&
+                        docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+                    "
                     
                     # Test service endpoint
                     echo "Testing service endpoint..."
                     curl -s ${HEALTH_URL} | head -5 || echo "Service response check"
                     
-                    # Check service logs
-                    echo "Checking service logs..."
-                    docker logs ${SERVICE_NAME} --tail 20 || echo "Could not get service logs"
-                    
-                    # Verify port is listening
-                    echo "Verifying port 8001 is listening..."
-                    netstat -tulpn | grep :8001 || echo "Port check completed"
+                    # Check service logs using Docker-in-Docker
+                    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock docker:latest bash -c "
+                        echo 'Checking service logs...' &&
+                        docker logs ${SERVICE_NAME} --tail 20 || echo 'Could not get service logs'
+                    "
                 '''
             }
         }
@@ -123,18 +117,22 @@ pipeline {
             echo "🗄️ Database accessible at: localhost:5433"
             echo ""
             echo "📊 Docker Containers Status:"
-            sh 'docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"'
+            sh '''
+                docker run --rm -v /var/run/docker.sock:/var/run/docker.sock docker:latest bash -c "
+                    docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+                "
+            '''
         }
         failure {
             echo "❌ CI/CD Pipeline Failed!"
             echo "🔍 Debugging information:"
             sh '''
-                echo "Docker containers:"
-                docker ps -a
-                echo "Docker images:"
-                docker images | head -10
-                echo "Docker compose status:"
-                docker-compose ps || echo "Docker compose not available"
+                docker run --rm -v /var/run/docker.sock:/var/run/docker.sock docker:latest bash -c "
+                    echo 'Docker containers:' &&
+                    docker ps -a &&
+                    echo 'Docker images:' &&
+                    docker images | head -10
+                "
             '''
         }
         always {
