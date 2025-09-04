@@ -5,7 +5,7 @@ pipeline {
         DOCKER_COMPOSE_FILE = 'docker-compose.yml'
         SERVICE_NAME = 'commit-tracker-service'
         HEALTH_URL = 'http://localhost:8001/health'
-        VENV_PATH = '/opt/venv'
+        PYTHON_IMAGE = 'python:3.11-slim'
     }
     
     stages {
@@ -18,60 +18,16 @@ pipeline {
             }
         }
         
-        stage('Setup Python Environment') {
+        stage('Run Tests with Docker') {
             steps {
                 script {
-                    echo '🐍 Setting up Python environment...'
-                    
-                    // Check if Python3 is available
+                    echo '🧪 Running tests using Docker Python container...'
                     sh '''
-                        echo "Checking Python installation..."
-                        python3 --version || echo "Python3 not found"
-                        which python3 || echo "Python3 path not found"
-                    '''
-                    
-                    // Create virtual environment
-                    echo '📦 Creating virtual environment...'
-                    sh '''
-                        echo "Creating virtual environment at ${VENV_PATH}..."
-                        python3 -m venv ${VENV_PATH} || {
-                            echo "Virtual environment creation failed, trying alternative location..."
-                            python3 -m venv ./venv || echo "Virtual environment creation failed"
-                            export VENV_PATH="./venv"
-                        }
-                        
-                        echo "Activating virtual environment..."
-                        source ${VENV_PATH}/bin/activate || echo "Virtual environment activation failed"
-                        
-                        echo "Upgrading pip..."
-                        pip install --upgrade pip || echo "Pip upgrade failed"
-                    '''
-                    
-                    // Install dependencies
-                    echo '📥 Installing Python dependencies...'
-                    sh '''
-                        echo "Installing dependencies from requirements.txt..."
-                        source ${VENV_PATH}/bin/activate && pip install -r requirements.txt || {
-                            echo "Dependencies installation failed, trying individual packages..."
-                            source ${VENV_PATH}/bin/activate && pip install fastapi uvicorn pytest sqlalchemy asyncpg pydantic structlog httpx prometheus-client gitpython python-jose passlib bcrypt python-multipart requests flake8
-                        }
-                        
-                        echo "Verifying installation..."
-                        source ${VENV_PATH}/bin/activate && pip list | head -10
-                    '''
-                    
-                    echo '✅ Python environment setup completed'
-                }
-            }
-        }
-        
-        stage('Run Tests') {
-            steps {
-                script {
-                    echo '🧪 Running comprehensive test suite...'
-                    sh '''
-                        echo "Activating virtual environment and running tests..."
-                        source ${VENV_PATH}/bin/activate && python -m pytest tests/ -v --tb=short || {
+                        echo "Running tests in Docker container..."
+                        docker run --rm -v $(pwd):/app -w /app ${PYTHON_IMAGE} bash -c "
+                            pip install -r requirements.txt &&
+                            python -m pytest tests/ -v --tb=short
+                        " || {
                             echo "Some tests failed, but continuing with pipeline..."
                             exit 0
                         }
@@ -81,13 +37,16 @@ pipeline {
             }
         }
         
-        stage('Code Quality Check') {
+        stage('Code Quality Check with Docker') {
             steps {
                 script {
-                    echo '🔍 Running code quality checks...'
+                    echo '🔍 Running code quality checks using Docker...'
                     sh '''
-                        echo "Running code quality check..."
-                        source ${VENV_PATH}/bin/activate && python -m flake8 src/ --max-line-length=120 || echo "Code quality check completed with warnings"
+                        echo "Running code quality check in Docker container..."
+                        docker run --rm -v $(pwd):/app -w /app ${PYTHON_IMAGE} bash -c "
+                            pip install flake8 &&
+                            python -m flake8 src/ --max-line-length=120
+                        " || echo "Code quality check completed with warnings"
                     '''
                     echo '✅ Code quality check completed'
                 }
