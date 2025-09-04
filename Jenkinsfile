@@ -17,10 +17,30 @@ pipeline {
             }
         }
         
-        stage('Install Dependencies') {
+        stage('Setup Python Environment') {
             steps {
-                sh 'bash -c "source ${VENV_PATH}/bin/activate && pip install -r requirements.txt"'
-                echo '✅ Dependencies installed'
+                script {
+                    echo '🐍 Setting up Python environment...'
+                    
+                    // Check if Python3 is available
+                    try {
+                        sh 'python3 --version'
+                        echo '✅ Python3 found'
+                    } catch (Exception e) {
+                        echo '⚠️ Python3 not found, installing...'
+                        sh 'apt-get update && apt-get install -y python3 python3-pip python3.11-venv'
+                    }
+                    
+                    // Create virtual environment
+                    echo '📦 Creating virtual environment...'
+                    sh 'python3 -m venv ${VENV_PATH} || echo "Virtual environment creation failed"'
+                    
+                    // Install dependencies
+                    echo '📥 Installing dependencies...'
+                    sh 'bash -c "source ${VENV_PATH}/bin/activate && pip install --upgrade pip && pip install -r requirements.txt"'
+                    
+                    echo '✅ Python environment setup completed'
+                }
             }
         }
         
