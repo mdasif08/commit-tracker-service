@@ -5,7 +5,7 @@ pipeline {
         DOCKER_COMPOSE_FILE = 'docker-compose.yml'
         SERVICE_NAME = 'commit-tracker-service'
         HEALTH_URL = 'http://localhost:8001/health'
-        VENV_PATH = '/var/jenkins_home/venv'
+        VENV_PATH = '/opt/venv'
     }
     
     stages {
@@ -58,6 +58,14 @@ pipeline {
                         echo '✅ Docker Compose verification completed'
                     } catch (Exception e) {
                         echo '⚠️ Docker Compose not available'
+                    }
+                    
+                    // Test Docker socket access
+                    try {
+                        sh 'docker ps'
+                        echo '✅ Docker socket access confirmed'
+                    } catch (Exception e) {
+                        echo '⚠️ Docker socket access issue - this may cause deployment failures'
                     }
                 }
             }
