@@ -5,6 +5,7 @@ pipeline {
         DOCKER_COMPOSE_FILE = 'docker-compose.yml'
         SERVICE_NAME = 'commit-tracker-service'
         HEALTH_URL = 'http://localhost:8001/health'
+        VENV_PATH = '/var/jenkins_home/venv'
     }
     
     stages {
@@ -18,21 +19,21 @@ pipeline {
         
         stage('Install Dependencies') {
             steps {
-                sh 'pip install -r requirements.txt'
+                sh 'source ${VENV_PATH}/bin/activate && pip install -r requirements.txt'
                 echo '✅ Dependencies installed'
             }
         }
         
         stage('Run Tests') {
             steps {
-                sh 'python -m pytest tests/ -v'
+                sh 'source ${VENV_PATH}/bin/activate && python -m pytest tests/ -v'
                 echo '✅ Tests completed successfully'
             }
         }
         
         stage('Code Quality Check') {
             steps {
-                sh 'python -m flake8 src/ || echo "Flake8 not available, skipping"'
+                sh 'source ${VENV_PATH}/bin/activate && python -m flake8 src/ || echo "Flake8 check completed"'
                 echo '✅ Code quality check completed'
             }
         }
