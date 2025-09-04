@@ -18,35 +18,43 @@ pipeline {
             }
         }
         
-        stage('Run Tests with Docker') {
+        stage('Run Tests with Docker-in-Docker') {
             steps {
                 script {
-                    echo '🧪 Running tests using Docker Python container...'
+                    echo '🧪 Running tests using Docker-in-Docker approach...'
                     sh '''
-                        echo "Running tests in Docker container..."
-                        docker run --rm -v $(pwd):/app -w /app ${PYTHON_IMAGE} bash -c "
-                            pip install -r requirements.txt &&
-                            python -m pytest tests/ -v --tb=short
-                        " || {
-                            echo "Some tests failed, but continuing with pipeline..."
-                            exit 0
-                        }
+                        echo "Running tests in Docker container with Docker socket access..."
+                        docker run --rm \
+                            -v /var/run/docker.sock:/var/run/docker.sock \
+                            -v $(pwd):/app \
+                            -w /app \
+                            ${PYTHON_IMAGE} bash -c "
+                                pip install -r requirements.txt &&
+                                python -m pytest tests/ -v --tb=short
+                            " || {
+                                echo "Some tests failed, but continuing with pipeline..."
+                                exit 0
+                            }
                     '''
                     echo '✅ Tests completed successfully'
                 }
             }
         }
         
-        stage('Code Quality Check with Docker') {
+        stage('Code Quality Check with Docker-in-Docker') {
             steps {
                 script {
-                    echo '🔍 Running code quality checks using Docker...'
+                    echo '🔍 Running code quality checks using Docker-in-Docker...'
                     sh '''
                         echo "Running code quality check in Docker container..."
-                        docker run --rm -v $(pwd):/app -w /app ${PYTHON_IMAGE} bash -c "
-                            pip install flake8 &&
-                            python -m flake8 src/ --max-line-length=120
-                        " || echo "Code quality check completed with warnings"
+                        docker run --rm \
+                            -v /var/run/docker.sock:/var/run/docker.sock \
+                            -v $(pwd):/app \
+                            -w /app \
+                            ${PYTHON_IMAGE} bash -c "
+                                pip install flake8 &&
+                                python -m flake8 src/ --max-line-length=120
+                            " || echo "Code quality check completed with warnings"
                     '''
                     echo '✅ Code quality check completed'
                 }
@@ -59,14 +67,13 @@ pipeline {
                 script {
                     echo '🐳 Verifying Docker environment...'
                     sh '''
-                        echo "Checking Docker installation..."
-                        docker --version || echo "Docker not available"
+                        echo "Checking Docker socket access..."
+                        ls -la /var/run/docker.sock || echo "Docker socket not found"
                         
-                        echo "Checking Docker Compose..."
-                        docker-compose --version || echo "Docker Compose not available"
-                        
-                        echo "Testing Docker socket access..."
-                        docker ps || echo "Docker socket access issue"
+                        echo "Testing Docker access via Docker-in-Docker..."
+                        docker run --rm \
+                            -v /var/run/docker.sock:/var/run/docker.sock \
+                            docker:latest docker --version || echo "Docker access test failed"
                     '''
                     echo '✅ Docker environment verification completed'
                 }
@@ -78,11 +85,13 @@ pipeline {
                 script {
                     echo '🛑 Stopping existing containers...'
                     sh '''
-                        echo "Stopping existing containers..."
-                        docker-compose -f ${DOCKER_COMPOSE_FILE} down || echo "No containers to stop"
-                        
-                        echo "Cleaning up orphaned containers..."
-                        docker container prune -f || echo "Container cleanup failed"
+                        echo "Stopping existing containers using Docker-in-Docker..."
+                        docker run --rm \
+                            -v /var/run/docker.sock:/var/run/docker.sock \
+                            -v $(pwd):/app \
+                            -w /app \
+                            docker/compose:latest \
+                            docker-compose -f ${DOCKER_COMPOSE_FILE} down || echo "No containers to stop"
                     '''
                     echo '✅ Existing containers stopped'
                 }
@@ -94,23 +103,45 @@ pipeline {
                 script {
                     echo '🚀 Building and deploying application...'
                     sh '''
-                        echo "Building Docker images..."
-                        docker-compose -f ${DOCKER_COMPOSE_FILE} build || {
-                            echo "Docker Compose build failed, trying manual build..."
-                            docker build -t ${SERVICE_NAME}:latest . || echo "Manual build failed"
-                        }
+                        echo "Building Docker images using Docker-in-Docker..."
+                        docker run --rm \
+                            -v /var/run/docker.sock:/var/run/docker.sock \
+                            -v $(pwd):/app \
+                            -w /app \
+                            docker/compose:latest \
+                            docker-compose -f ${DOCKER_COMPOSE_FILE} build || {
+                                echo "Docker Compose build failed, trying manual build..."
+                                docker run --rm \
+                                    -v /var/run/docker.sock:/var/run/docker.sock \
+                                    -v $(pwd):/app \
+                                    -w /app \
+                                    docker:latest \
+                                    docker build -t ${SERVICE_NAME}:latest . || echo "Manual build failed"
+                            }
                         
                         echo "Starting services..."
-                        docker-compose -f ${DOCKER_COMPOSE_FILE} up -d || {
-                            echo "Docker Compose up failed, trying manual deployment..."
-                            docker run -d --name ${SERVICE_NAME} -p 8001:8001 ${SERVICE_NAME}:latest || echo "Manual deployment failed"
-                        }
+                        docker run --rm \
+                            -v /var/run/docker.sock:/var/run/docker.sock \
+                            -v $(pwd):/app \
+                            -w /app \
+                            docker/compose:latest \
+                            docker-compose -f ${DOCKER_COMPOSE_FILE} up -d || {
+                                echo "Docker Compose up failed, trying manual deployment..."
+                                docker run --rm \
+                                    -v /var/run/docker.sock:/var/run/docker.sock \
+                                    -v $(pwd):/app \
+                                    -w /app \
+                                    docker:latest \
+                                    docker run -d --name ${SERVICE_NAME} -p 8001:8001 ${SERVICE_NAME}:latest || echo "Manual deployment failed"
+                            }
                         
                         echo "Waiting for services to start..."
                         sleep 15
                         
                         echo "Checking running containers..."
-                        docker ps
+                        docker run --rm \
+                            -v /var/run/docker.sock:/var/run/docker.sock \
+                            docker:latest docker ps
                     '''
                     echo '✅ Application deployed successfully'
                 }
@@ -126,10 +157,14 @@ pipeline {
                         sleep 30
                         
                         echo "Checking service status..."
-                        docker ps | grep ${SERVICE_NAME} || echo "Service container not found"
+                        docker run --rm \
+                            -v /var/run/docker.sock:/var/run/docker.sock \
+                            docker:latest docker ps | grep ${SERVICE_NAME} || echo "Service container not found"
                         
                         echo "Checking service logs..."
-                        docker logs ${SERVICE_NAME} --tail 20 || echo "Could not get service logs"
+                        docker run --rm \
+                            -v /var/run/docker.sock:/var/run/docker.sock \
+                            docker:latest docker logs ${SERVICE_NAME} --tail 20 || echo "Could not get service logs"
                     '''
                     echo '⏰ Service should be ready now'
                 }
@@ -149,10 +184,14 @@ pipeline {
                             curl -I ${HEALTH_URL} || echo "Service not responding"
                             
                             echo "Checking container status..."
-                            docker ps | grep ${SERVICE_NAME} || echo "Container not running"
+                            docker run --rm \
+                                -v /var/run/docker.sock:/var/run/docker.sock \
+                                docker:latest docker ps | grep ${SERVICE_NAME} || echo "Container not running"
                             
                             echo "Checking service logs for errors..."
-                            docker logs ${SERVICE_NAME} --tail 50 || echo "Could not get logs"
+                            docker run --rm \
+                                -v /var/run/docker.sock:/var/run/docker.sock \
+                                docker:latest docker logs ${SERVICE_NAME} --tail 50 || echo "Could not get logs"
                             
                             echo "Health check failed, but continuing..."
                             exit 0
@@ -169,13 +208,20 @@ pipeline {
                     echo '🔍 Verifying complete deployment...'
                     sh '''
                         echo "Checking all running containers..."
-                        docker ps
+                        docker run --rm \
+                            -v /var/run/docker.sock:/var/run/docker.sock \
+                            docker:latest docker ps
                         
                         echo "Checking service accessibility..."
                         curl -s ${HEALTH_URL} | head -5 || echo "Service not accessible"
                         
                         echo "Checking Docker Compose status..."
-                        docker-compose -f ${DOCKER_COMPOSE_FILE} ps || echo "Docker Compose status check failed"
+                        docker run --rm \
+                            -v /var/run/docker.sock:/var/run/docker.sock \
+                            -v $(pwd):/app \
+                            -w /app \
+                            docker/compose:latest \
+                            docker-compose -f ${DOCKER_COMPOSE_FILE} ps || echo "Docker Compose status check failed"
                     '''
                     echo '✅ Deployment verification completed!'
                 }
@@ -201,7 +247,7 @@ pipeline {
             echo "1. Check Docker is running: docker ps"
             echo "2. Check service logs: docker logs ${SERVICE_NAME}"
             echo "3. Check container status: docker ps | grep ${SERVICE_NAME}"
-            echo "4. Verify Docker socket access: docker ps"
+            echo "4. Verify Docker socket access: ls -la /var/run/docker.sock"
         }
         always {
             echo "Pipeline completed. Cleaning up workspace..."
