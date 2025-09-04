@@ -19,21 +19,21 @@ pipeline {
         
         stage('Install Dependencies') {
             steps {
-                sh 'source ${VENV_PATH}/bin/activate && pip install -r requirements.txt'
+                sh 'bash -c "source ${VENV_PATH}/bin/activate && pip install -r requirements.txt"'
                 echo '✅ Dependencies installed'
             }
         }
         
         stage('Run Tests') {
             steps {
-                sh 'source ${VENV_PATH}/bin/activate && python -m pytest tests/ -v'
+                sh 'bash -c "source ${VENV_PATH}/bin/activate && python -m pytest tests/ -v"'
                 echo '✅ Tests completed successfully'
             }
         }
         
         stage('Code Quality Check') {
             steps {
-                sh 'source ${VENV_PATH}/bin/activate && python -m flake8 src/ || echo "Flake8 check completed"'
+                sh 'bash -c "source ${VENV_PATH}/bin/activate && python -m flake8 src/ || echo \"Flake8 check completed\""'
                 echo '✅ Code quality check completed'
             }
         }
