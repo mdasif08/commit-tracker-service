@@ -54,7 +54,7 @@ pipeline {
                     }
                     
                     try {
-                        sh 'docker compose version || docker-compose --version || echo "Docker Compose not found"'
+                        sh 'docker-compose --version || echo "Docker Compose not found"'
                         echo '✅ Docker Compose verification completed'
                     } catch (Exception e) {
                         echo '⚠️ Docker Compose not available'
@@ -68,7 +68,7 @@ pipeline {
                 script {
                     echo '🛑 Stopping existing containers...'
                     try {
-                        sh 'docker compose -f ${DOCKER_COMPOSE_FILE} down || docker-compose -f ${DOCKER_COMPOSE_FILE} down || echo "No containers to stop"'
+                        sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} down || echo "No containers to stop"'
                         echo '✅ Existing containers stopped'
                     } catch (Exception e) {
                         echo '⚠️ Warning: Could not stop containers, continuing...'
@@ -82,8 +82,8 @@ pipeline {
                 script {
                     echo '🚀 Building and starting containers...'
                     try {
-                        // Try modern docker compose first
-                        sh 'docker compose -f ${DOCKER_COMPOSE_FILE} up -d --build || docker-compose -f ${DOCKER_COMPOSE_FILE} up -d --build'
+                        // Use docker-compose (legacy) since that's what's available
+                        sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} up -d --build'
                         echo '✅ Containers built and started'
                     } catch (Exception e) {
                         echo '❌ Failed to build and start containers'
@@ -136,7 +136,7 @@ pipeline {
                     echo '🔍 Verifying deployment...'
                     try {
                         sh 'docker ps | grep ${SERVICE_NAME} || echo "Container not found in docker ps"'
-                        sh 'docker compose -f ${DOCKER_COMPOSE_FILE} ps || docker-compose -f ${DOCKER_COMPOSE_FILE} ps || echo "Docker compose not available"'
+                        sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} ps || echo "Docker compose not available"'
                         echo '✅ Deployment verified successfully!'
                     } catch (Exception e) {
                         echo '⚠️ Warning: Could not verify deployment completely'
