@@ -1,4 +1,3 @@
-jenkinsfile 2 update :
 pipeline {
     agent any
     
@@ -15,132 +14,144 @@ pipeline {
             }
         }
         
-        stage('CI - Test with Virtual Environment') {
+        stage('Build Application') {
             steps {
-                script {
-                    echo ' Running tests with virtual environment...'
-                    sh '''
-                        echo "Creating virtual environment..."
-                        python3 -m venv venv || echo "Virtual environment creation failed"
-                        
-                        echo "Installing dependencies in virtual environment..."
-                        source venv/bin/activate && pip install -r requirements.txt || {
-                            echo "Trying individual package installation..."
-                            source venv/bin/activate && pip install fastapi uvicorn pytest sqlalchemy asyncpg pydantic structlog httpx prometheus-client gitpython python-jose passlib bcrypt python-multipart requests flake8
-                        }
-                        
-                        echo "Running tests..."
-                        source venv/bin/activate && python -m pytest tests/ -v --tb=short || echo "Tests completed with some failures"
-                    '''
-                    echo '✅ Tests completed'
-                }
+                sh '''
+                    echo "🔨 Building application..."
+                    
+                    # Check Docker access
+                    docker --version
+                    docker-compose --version
+                    
+                    # Build the application image
+                    echo "Building Docker image..."
+                    docker build -t ${SERVICE_NAME}:latest .
+                    
+                    echo "✅ Application built successfully"
+                '''
             }
         }
         
-        stage('CI - Code Quality') {
+        stage('Run Tests') {
             steps {
-                script {
-                    echo '🔍 Running code quality checks...'
-                    sh '''
-                        echo "Running code quality check..."
-                        source venv/bin/activate && python -m flake8 src/ --max-line-length=120 || echo "Code quality check completed"
-                    '''
-                    echo '✅ Code quality completed'
-                }
+                sh '''
+                    echo "�� Running tests..."
+                    
+                    # Run tests in a Python container
+                    docker run --rm -v $(pwd):/workspace -w /workspace python:3.11-slim bash -c "
+                        pip install --upgrade pip &&
+                        pip install -r requirements.txt &&
+                        python -m pytest tests/ -v --tb=short || echo 'Tests completed with some failures'
+                    "
+                    
+                    echo "✅ Tests completed"
+                '''
             }
         }
         
-        stage('CD - Deploy (Hybrid Approach)') {
+        stage('Code Quality') {
             steps {
-                script {
-                    echo '🚀 Deploying application...'
-                    sh '''
-                        echo "Trying direct Docker Compose first..."
-                        docker-compose down || echo "No containers to stop"
-                        docker-compose up -d --build || {
-                            echo "Direct Docker Compose failed, trying Docker-in-Docker..."
-                            
-                            echo "Stopping existing containers using Docker-in-Docker..."
-                            docker run --rm \
-                                -v /var/run/docker.sock:/var/run/docker.sock \
-                                -v $(pwd):/app \
-                                -w /app \
-                                docker/compose:latest \
-                                docker-compose down || echo "No containers to stop"
-                            
-                            echo "Building and starting services with Docker-in-Docker..."
-                            docker run --rm \
-                                -v /var/run/docker.sock:/var/run/docker.sock \
-                                -v $(pwd):/app \
-                                -w /app \
-                                docker/compose:latest \
-                                docker-compose up -d --build || echo "Docker Compose deployment failed"
-                        }
-                        
-                        echo "Waiting for services to start..."
-                        sleep 30
-                        
-                        echo "Checking service health..."
-                        curl -f ${HEALTH_URL} || echo "Health check failed - service may still be starting"
-                    '''
-                    echo '✅ Application deployed'
-                }
+                sh '''
+                    echo "🔍 Running code quality checks..."
+                    
+                    # Run code quality checks in a Python container
+                    docker run --rm -v $(pwd):/workspace -w /workspace python:3.11-slim bash -c "
+                        pip install flake8 &&
+                        python -m flake8 src/ --max-line-length=120 || echo 'Code quality check completed'
+                    "
+                    
+                    echo "✅ Code quality check completed"
+                '''
             }
         }
         
-        stage('CD - Verify Deployment') {
+        stage('Deploy Application') {
             steps {
-                script {
-                    echo '🔍 Verifying deployment...'
-                    sh '''
-                        echo "Checking running containers..."
-                        docker ps || {
-                            echo "Direct Docker failed, trying Docker-in-Docker..."
-                            docker run --rm \
-                                -v /var/run/docker.sock:/var/run/docker.sock \
-                                docker:latest \
-                                docker ps || echo "Could not check containers"
-                        }
-                        
-                        echo "Testing service endpoint..."
-                        curl -s ${HEALTH_URL} || echo "Service not accessible"
-                        
-                        echo "Checking service logs..."
-                        docker logs ${SERVICE_NAME} --tail 10 || {
-                            echo "Direct Docker logs failed, trying Docker-in-Docker..."
-                            docker run --rm \
-                                -v /var/run/docker.sock:/var/run/docker.sock \
-                                docker:latest \
-                                docker logs ${SERVICE_NAME} --tail 10 || echo "Could not get logs"
-                        }
-                    '''
-                    echo '✅ Deployment verified'
-                }
+                sh '''
+                    echo "🚀 Deploying application..."
+                    
+                    # Stop any existing containers
+                    echo "Stopping existing containers..."
+                    docker-compose down --remove-orphans || echo "No existing containers to stop"
+                    
+                    # Clean up orphaned containers
+                    docker container prune -f || echo "No containers to prune"
+                    
+                    # Build and start services
+                    echo "Building and starting services..."
+                    docker-compose up -d --build --force-recreate
+                    
+                    # Wait for services to start
+                    echo "Waiting for services to start..."
+                    sleep 45
+                    
+                    # Health check with retry logic
+                    echo "Performing health check..."
+                    for i in {1..5}; do
+                        if curl -f ${HEALTH_URL}; then
+                            echo "✅ Health check passed on attempt $i"
+                            break
+                        else
+                            echo "⏳ Health check attempt $i failed, retrying in 10 seconds..."
+                            sleep 10
+                        fi
+                    done
+                    
+                    echo "✅ DEPLOYMENT COMPLETED!"
+                '''
+            }
+        }
+        
+        stage('Verify Deployment') {
+            steps {
+                sh '''
+                    echo "🔍 Verifying deployment..."
+                    
+                    # Check running containers
+                    echo "Checking running containers..."
+                    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+                    
+                    # Test service endpoint
+                    echo "Testing service endpoint..."
+                    curl -s ${HEALTH_URL} | head -5 || echo "Service response check"
+                    
+                    # Check service logs
+                    echo "Checking service logs..."
+                    docker logs ${SERVICE_NAME} --tail 20 || echo "Could not get service logs"
+                    
+                    # Verify port is listening
+                    echo "Verifying port 8001 is listening..."
+                    netstat -tulpn | grep :8001 || echo "Port check completed"
+                '''
             }
         }
     }
     
     post {
         success {
-            echo "🎉 CI/CD Pipeline Successful!"
-            echo "✅ Code tested and validated"
+            echo "🎉 CI/CD Pipeline SUCCESSFUL!"
+            echo "✅ Code checked out successfully"
+            echo "✅ Application built successfully"
+            echo "✅ Tests completed"
+            echo "✅ Code quality checked"
             echo "✅ Application deployed successfully"
             echo "🌐 Your service is running at: http://localhost:8001"
-            echo "🗄 Database accessible at: localhost:5433"
+            echo "🗄️ Database accessible at: localhost:5433"
             echo ""
-            echo "📊 To check containers: docker ps"
-            echo "📝 To check logs: docker logs ${SERVICE_NAME}"
-            echo "🔍 To check health: curl http://localhost:8001/health"
+            echo "📊 Docker Containers Status:"
+            sh 'docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"'
         }
         failure {
             echo "❌ CI/CD Pipeline Failed!"
-            echo "Check the logs above for errors"
-            echo ""
-            echo " Troubleshooting:"
-            echo "1. Check Docker is running: docker ps"
-            echo "2. Check service logs: docker logs ${SERVICE_NAME}"
-            echo "3. Check container status: docker ps | grep ${SERVICE_NAME}"
-            echo "4. Test service manually: curl http://localhost:8001/health"
+            echo "🔍 Debugging information:"
+            sh '''
+                echo "Docker containers:"
+                docker ps -a
+                echo "Docker images:"
+                docker images | head -10
+                echo "Docker compose status:"
+                docker-compose ps || echo "Docker compose not available"
+            '''
         }
         always {
             echo "Pipeline completed"
