@@ -6,7 +6,6 @@ pipeline {
         SERVICE_NAME = 'commit-tracker-service'
         HEALTH_URL = 'http://localhost:8001/health'
         VENV_PATH = '/opt/venv'
-        PYTHON_VERSION = 'python3'
     }
     
     stages {
@@ -19,55 +18,16 @@ pipeline {
             }
         }
         
-        stage('Setup System Dependencies') {
-            steps {
-                script {
-                    echo '🔧 Setting up system dependencies...'
-                    
-                    // Update package lists and install essential tools
-                    sh '''
-                        echo "Updating package lists..."
-                        apt-get update || echo "Package update failed, continuing..."
-                        
-                        echo "Installing essential tools..."
-                        apt-get install -y curl wget git || echo "Some tools installation failed, continuing..."
-                        
-                        echo "Installing Python3 and pip..."
-                        apt-get install -y python3 python3-pip python3.11-venv || echo "Python installation failed, continuing..."
-                        
-                        echo "Installing Docker if not available..."
-                        if ! command -v docker &> /dev/null; then
-                            echo "Installing Docker..."
-                            apt-get install -y docker.io || echo "Docker installation failed, continuing..."
-                            service docker start || echo "Docker service start failed, continuing..."
-                        else
-                            echo "Docker already available"
-                        fi
-                        
-                        echo "Installing Docker Compose if not available..."
-                        if ! command -v docker-compose &> /dev/null; then
-                            echo "Installing Docker Compose..."
-                            apt-get install -y docker-compose || echo "Docker Compose installation failed, continuing..."
-                        else
-                            echo "Docker Compose already available"
-                        fi
-                        
-                        echo "System dependencies setup completed"
-                    '''
-                }
-            }
-        }
-        
         stage('Setup Python Environment') {
             steps {
                 script {
                     echo '🐍 Setting up Python environment...'
                     
-                    // Verify Python installation
+                    // Check if Python3 is available
                     sh '''
                         echo "Checking Python installation..."
                         python3 --version || echo "Python3 not found"
-                        pip3 --version || echo "Pip3 not found"
+                        which python3 || echo "Python3 path not found"
                     '''
                     
                     // Create virtual environment
@@ -75,9 +35,9 @@ pipeline {
                     sh '''
                         echo "Creating virtual environment at ${VENV_PATH}..."
                         python3 -m venv ${VENV_PATH} || {
-                            echo "Virtual environment creation failed, trying alternative..."
-                            mkdir -p ${VENV_PATH}
-                            python3 -m venv ${VENV_PATH} || echo "Virtual environment creation failed"
+                            echo "Virtual environment creation failed, trying alternative location..."
+                            python3 -m venv ./venv || echo "Virtual environment creation failed"
+                            export VENV_PATH="./venv"
                         }
                         
                         echo "Activating virtual environment..."
@@ -93,7 +53,7 @@ pipeline {
                         echo "Installing dependencies from requirements.txt..."
                         source ${VENV_PATH}/bin/activate && pip install -r requirements.txt || {
                             echo "Dependencies installation failed, trying individual packages..."
-                            source ${VENV_PATH}/bin/activate && pip install fastapi uvicorn pytest sqlalchemy asyncpg pydantic structlog httpx prometheus-client gitpython python-jose passlib bcrypt python-multipart requests
+                            source ${VENV_PATH}/bin/activate && pip install fastapi uvicorn pytest sqlalchemy asyncpg pydantic structlog httpx prometheus-client gitpython python-jose passlib bcrypt python-multipart requests flake8
                         }
                         
                         echo "Verifying installation..."
@@ -126,9 +86,6 @@ pipeline {
                 script {
                     echo '🔍 Running code quality checks...'
                     sh '''
-                        echo "Installing flake8 if not available..."
-                        source ${VENV_PATH}/bin/activate && pip install flake8 || echo "Flake8 installation failed"
-                        
                         echo "Running code quality check..."
                         source ${VENV_PATH}/bin/activate && python -m flake8 src/ --max-line-length=120 || echo "Code quality check completed with warnings"
                     '''
@@ -151,9 +108,6 @@ pipeline {
                         
                         echo "Testing Docker socket access..."
                         docker ps || echo "Docker socket access issue"
-                        
-                        echo "Checking available disk space..."
-                        df -h || echo "Disk space check failed"
                     '''
                     echo '✅ Docker environment verification completed'
                 }
@@ -170,9 +124,6 @@ pipeline {
                         
                         echo "Cleaning up orphaned containers..."
                         docker container prune -f || echo "Container cleanup failed"
-                        
-                        echo "Checking for port conflicts..."
-                        netstat -tulpn | grep :8001 || echo "Port 8001 is available"
                     '''
                     echo '✅ Existing containers stopped'
                 }
@@ -197,7 +148,7 @@ pipeline {
                         }
                         
                         echo "Waiting for services to start..."
-                        sleep 10
+                        sleep 15
                         
                         echo "Checking running containers..."
                         docker ps
@@ -266,9 +217,6 @@ pipeline {
                         
                         echo "Checking Docker Compose status..."
                         docker-compose -f ${DOCKER_COMPOSE_FILE} ps || echo "Docker Compose status check failed"
-                        
-                        echo "Checking network connectivity..."
-                        netstat -tulpn | grep :8001 || echo "Port 8001 not listening"
                     '''
                     echo '✅ Deployment verification completed!'
                 }
@@ -292,9 +240,9 @@ pipeline {
             echo "Check the logs above for errors"
             echo "Common troubleshooting steps:"
             echo "1. Check Docker is running: docker ps"
-            echo "2. Check port availability: netstat -tulpn | grep :8001"
-            echo "3. Check service logs: docker logs ${SERVICE_NAME}"
-            echo "4. Check system resources: df -h && free -h"
+            echo "2. Check service logs: docker logs ${SERVICE_NAME}"
+            echo "3. Check container status: docker ps | grep ${SERVICE_NAME}"
+            echo "4. Verify Docker socket access: docker ps"
         }
         always {
             echo "Pipeline completed. Cleaning up workspace..."
