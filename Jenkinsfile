@@ -38,8 +38,12 @@ pipeline {
                 script {
                     try {
                         sh '''
-                            # Build the Docker image
-                            docker build -t ${SERVICE_NAME}:${GIT_COMMIT_SHORT} .
+                            # Clean up Docker cache and build without cache
+                            docker system prune -f
+                            docker builder prune -f
+                            
+                            # Build the Docker image without cache
+                            docker build --no-cache -t ${SERVICE_NAME}:${GIT_COMMIT_SHORT} .
                             docker tag ${SERVICE_NAME}:${GIT_COMMIT_SHORT} ${SERVICE_NAME}:latest
                             
                             # Verify image was created
@@ -108,8 +112,11 @@ RUN git config --global user.name "Test User" && \
 CMD ["python", "-m", "pytest", "tests/", "-v", "--tb=short"]
 EOF
                             
-                            # Build and run test container
-                            docker build -f Dockerfile.test -t ${SERVICE_NAME}-test .
+                            # Clean up any existing test images
+                            docker rmi ${SERVICE_NAME}-test 2>/dev/null || true
+                            
+                            # Build and run test container without cache
+                            docker build --no-cache -f Dockerfile.test -t ${SERVICE_NAME}-test .
                             docker run --rm ${SERVICE_NAME}-test
                             
                             # Clean up test image
@@ -150,8 +157,11 @@ COPY src/ ./src/
 CMD ["flake8", "src/", "--max-line-length=100", "--ignore=E203,W503"]
 EOF
                             
-                            # Build and run quality check container
-                            docker build -f Dockerfile.quality -t ${SERVICE_NAME}-quality .
+                            # Clean up any existing quality images
+                            docker rmi ${SERVICE_NAME}-quality 2>/dev/null || true
+                            
+                            # Build and run quality check container without cache
+                            docker build --no-cache -f Dockerfile.quality -t ${SERVICE_NAME}-quality .
                             docker run --rm ${SERVICE_NAME}-quality
                             
                             # Clean up quality check image
@@ -175,11 +185,10 @@ EOF
                             # Stop existing containers
                             docker-compose down --remove-orphans || true
                             
-                            # Clean up old images
+                            # Clean up old images and build without cache
                             docker image prune -f || true
-                            
-                            # Start services
-                            docker-compose up -d --build --force-recreate
+                            docker-compose build --no-cache
+                            docker-compose up -d --force-recreate
                             
                             # Wait for services to start
                             echo "⏳ Waiting for services to start..."
