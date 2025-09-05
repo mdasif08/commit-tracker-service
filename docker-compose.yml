@@ -11,11 +11,16 @@ services:
       - DEBUG=true
       - LOG_LEVEL=INFO
       - ENABLE_METRICS=true
+      - SECRET_KEY=your-secret-key-change-in-production
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - HOST=0.0.0.0
+      - PORT=8001
     volumes:
       - .:/app
       - git-repo:/app/repo
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - microservice-network
     restart: unless-stopped
@@ -45,6 +50,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
 
 volumes:
   postgres_data:

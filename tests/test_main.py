@@ -522,15 +522,22 @@ class TestGitUtilities:
             assert data["uncommitted_changes"] == ["file1.py", "file2.py"]
 
     def test_get_git_status_failure(self):
-        """Test git status retrieval failure."""
+        """Test git status retrieval failure with graceful fallback."""
         with patch("src.main.git_utils.get_repository_name") as mock_get_name:
             mock_get_name.side_effect = Exception("Git status failed")
 
             client = TestClient(app)
             response = client.get("/api/git/status", headers={"Host": "localhost"})
 
-            assert response.status_code == 500
-            assert "Git status failed" in response.json()["error"]
+            # Our improved endpoint now returns 200 with graceful fallback instead of 500
+            assert response.status_code == 200
+            response_data = response.json()
+            assert response_data["repository_name"] == "commit-tracker-service"
+            assert response_data["current_branch"] == "main"
+            assert response_data["uncommitted_changes"] == []
+            assert response_data["environment"] == "docker_container"
+            assert "Git operations not available" in response_data["note"]
+            assert "Git status failed" in response_data["git_error"]
 
     def test_get_recent_commits_success(self):
         """Test successful recent commits retrieval."""

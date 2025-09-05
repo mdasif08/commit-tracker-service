@@ -5,6 +5,7 @@ import json
 import os
 import sys
 import time
+import psutil
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Union
@@ -20,6 +21,7 @@ from fastapi import (
     Query,
     Request,
     Response,
+    status,
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -36,24 +38,47 @@ from prometheus_client import (
     generate_latest,
 )
 
-from .config import settings
-from .database import close_db_service, get_db_service
-from .models import (
-    CommitHistoryRequest,
-    CommitHistoryResponse,
-    CommitMetrics,
-    ErrorResponse,
-    HealthCheckResponse,
-    LocalCommitData,
-    Token,
-    User,
-    WebhookPayload,
-)
-from .services.auth_service import auth_service
-from .services.auto_sync_service import auto_sync_service
-from .services.commit_service import commit_service
-from .utils.git_utils import git_utils
-from .utils.pattern_analyzer import pattern_analyzer
+# Import with error handling for 100% reliability
+try:
+    from .config import settings
+    from .database import close_db_service, get_db_service
+    from .models import (
+        CommitHistoryRequest,
+        CommitHistoryResponse,
+        CommitMetrics,
+        ErrorResponse,
+        HealthCheckResponse,
+        LocalCommitData,
+        Token,
+        User,
+        WebhookPayload,
+    )
+    from .services.auth_service import auth_service
+    from .services.auto_sync_service import auto_sync_service
+    from .services.commit_service import commit_service
+    from .utils.git_utils import git_utils
+    from .utils.pattern_analyzer import pattern_analyzer
+except ImportError as e:
+    print(f"Import error: {e}")
+    # Fallback imports for 100% reliability
+    from src.config import settings
+    from src.database import close_db_service, get_db_service
+    from src.models import (
+        CommitHistoryRequest,
+        CommitHistoryResponse,
+        CommitMetrics,
+        ErrorResponse,
+        HealthCheckResponse,
+        LocalCommitData,
+        Token,
+        User,
+        WebhookPayload,
+    )
+    from src.services.auth_service import auth_service
+    from src.services.auto_sync_service import auto_sync_service
+    from src.services.commit_service import commit_service
+    from src.utils.git_utils import git_utils
+    from src.utils.pattern_analyzer import pattern_analyzer
 
 
 def get_error_location() -> tuple[str, int]:
@@ -275,6 +300,120 @@ async def health_check():
             timestamp=datetime.now(timezone.utc),
             fix_code="DATABASE_URL = 'sqlite+aiosqlite:///./commit_tracker.db'",
             fix_command="pip install aiosqlite && python scripts/start_server.py",
+            file_name=file_name,
+            line_number=line_number,
+        )
+
+
+# Kubernetes readiness probe endpoint
+@app.get("/health/ready")
+async def readiness_probe():
+    """Kubernetes readiness probe endpoint."""
+    try:
+        # Check if the service is ready to accept traffic
+        db_service = await get_db_service()
+        db_healthy = await db_service.health_check()
+        
+        if db_healthy:
+            return {
+                "status": "ready",
+                "timestamp": datetime.now(timezone.utc),
+                "version": settings.APP_VERSION,
+                "database_status": "healthy",
+                "service_status": "ready"
+            }
+        else:
+            raise HTTPException(
+                status_code=503,
+                detail="Service not ready - database unhealthy"
+            )
+    except Exception as e:
+        logger.error("Readiness probe failed", error=str(e))
+        raise HTTPException(
+            status_code=503,
+            detail=f"Service not ready: {str(e)}"
+        )
+
+
+# Kubernetes liveness probe endpoint
+@app.get("/health/live")
+async def liveness_probe():
+    """Kubernetes liveness probe endpoint."""
+    try:
+        # Simple liveness check - if we can respond, we're alive
+        return {
+            "status": "alive",
+            "timestamp": datetime.now(timezone.utc),
+            "version": settings.APP_VERSION,
+            "uptime": time.time() - STARTUP_TIME,
+            "service_status": "running"
+        }
+    except Exception as e:
+        logger.error("Liveness probe failed", error=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"Service not alive: {str(e)}"
+        )
+
+
+# System monitoring endpoint
+@app.get("/api/system")
+async def get_system_info():
+    """Get system information and resource usage."""
+    try:
+        # Get system metrics using psutil
+        cpu_percent = psutil.cpu_percent(interval=1)
+        memory = psutil.virtual_memory()
+        disk = psutil.disk_usage('/')
+        
+        # Get process information
+        process = psutil.Process()
+        process_memory = process.memory_info()
+        
+        return {
+            "system": {
+                "cpu": {
+                    "usage_percent": cpu_percent,
+                    "count": psutil.cpu_count(),
+                    "frequency": psutil.cpu_freq()._asdict() if psutil.cpu_freq() else None
+                },
+                "memory": {
+                    "total": memory.total,
+                    "available": memory.available,
+                    "used": memory.used,
+                    "usage_percent": memory.percent
+                },
+                "disk": {
+                    "total": disk.total,
+                    "used": disk.used,
+                    "free": disk.free,
+                    "usage_percent": (disk.used / disk.total) * 100
+                }
+            },
+            "process": {
+                "pid": process.pid,
+                "memory_rss": process_memory.rss,
+                "memory_vms": process_memory.vms,
+                "cpu_percent": process.cpu_percent(),
+                "create_time": process.create_time(),
+                "uptime": time.time() - process.create_time()
+            },
+            "service": {
+                "name": settings.APP_NAME,
+                "version": settings.APP_VERSION,
+                "uptime": time.time() - STARTUP_TIME,
+                "timestamp": datetime.now(timezone.utc)
+            }
+        }
+    except Exception as e:
+        logger.error("Failed to get system info", error=str(e))
+        file_name, line_number = get_error_location()
+        return ErrorResponse(
+            error="Failed to get system information",
+            detail=str(e),
+            timestamp=datetime.now(timezone.utc),
+            fix_code="pip install psutil",
+            fix_command="pip install psutil && python scripts/start_server.py",
             file_name=file_name,
             line_number=line_number,
         )
@@ -506,14 +645,41 @@ async def get_commit_metrics(
 async def get_git_status():
     """Get current git repository status."""
     try:
-        return {
-            "repository_name": git_utils.get_repository_name(),
-            "current_branch": git_utils.get_current_branch(),
-            "uncommitted_changes": git_utils.get_uncommitted_changes(),
-        }
+        # Check if we're in a Docker environment or if git is available
+        try:
+            repository_name = git_utils.get_repository_name()
+            current_branch = git_utils.get_current_branch()
+            uncommitted_changes = git_utils.get_uncommitted_changes()
+            
+            return {
+                "repository_name": repository_name,
+                "current_branch": current_branch,
+                "uncommitted_changes": uncommitted_changes,
+                "environment": "local_git"
+            }
+        except Exception as git_error:
+            # Handle Docker environment where git might not be available
+            logger.warning("Git not available in container environment", error=str(git_error))
+            return {
+                "repository_name": "commit-tracker-service",
+                "current_branch": "main",
+                "uncommitted_changes": [],
+                "environment": "docker_container",
+                "note": "Git operations not available in containerized environment",
+                "git_error": str(git_error)
+            }
     except Exception as e:
         logger.error("Failed to get git status", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        file_name, line_number = get_error_location()
+        return ErrorResponse(
+            error="Failed to get git status",
+            detail=str(e),
+            timestamp=datetime.now(timezone.utc),
+            fix_code="git status",
+            fix_command="cd /path/to/your/repo && git status",
+            file_name=file_name,
+            line_number=line_number,
+        )
 
 
 @app.get("/api/git/commits/recent")

@@ -4,158 +4,278 @@ pipeline {
     environment {
         SERVICE_NAME = 'commit-tracker-service'
         HEALTH_URL = 'http://localhost:8001/health'
+        DOCKER_COMPOSE_FILE = 'docker-compose.yml'
     }
     
     stages {
         stage('Checkout Code') {
             steps {
+                echo '📋 Checking out code...'
                 checkout scm
-                echo '✅ Code checked out successfully'
+                script {
+                    env.GIT_COMMIT_SHORT = sh(
+                        script: 'git rev-parse --short HEAD',
+                        returnStdout: true
+                    ).trim()
+                    env.GIT_BRANCH = sh(
+                        script: 'git rev-parse --abbrev-ref HEAD',
+                        returnStdout: true
+                    ).trim()
+                }
+                echo "✅ Code checked out - Branch: ${env.GIT_BRANCH}, Commit: ${env.GIT_COMMIT_SHORT}"
             }
         }
         
         stage('Build Application') {
             steps {
-                sh '''
-                    echo "🔨 Building application..."
-                    
-                    # Check Docker access
-                    docker --version
-                    docker-compose --version
-                    
-                    # Build the application image
-                    echo "Building Docker image..."
-                    docker build -t ${SERVICE_NAME}:latest .
-                    
-                    echo "✅ Application built successfully"
-                '''
+                echo '🔨 Building Docker image...'
+                script {
+                    try {
+                        sh '''
+                            # Build the Docker image
+                            docker build -t ${SERVICE_NAME}:${GIT_COMMIT_SHORT} .
+                            docker tag ${SERVICE_NAME}:${GIT_COMMIT_SHORT} ${SERVICE_NAME}:latest
+                            
+                            # Verify image was created
+                            docker images | grep ${SERVICE_NAME}
+                        '''
+                        echo "✅ Docker image built successfully"
+                    } catch (Exception e) {
+                        echo "❌ Docker build failed: ${e.getMessage()}"
+                        throw e
+                    }
+                }
             }
         }
         
         stage('Run Tests') {
             steps {
-                sh '''
-                    echo "�� Running tests..."
-                    
-                    # Run tests in a Python container
-                    docker run --rm -v $(pwd):/workspace -w /workspace python:3.11-slim bash -c "
-                        pip install --upgrade pip &&
-                        pip install -r requirements.txt &&
-                        python -m pytest tests/ -v --tb=short || echo 'Tests completed with some failures'
-                    "
-                    
-                    echo "✅ Tests completed"
-                '''
+                echo '🧪 Running tests...'
+                script {
+                    try {
+                        sh '''
+                            # Run tests in a temporary container
+                            docker run --rm \
+                                -v $(pwd):/app \
+                                -w /app \
+                                python:3.11-slim \
+                                bash -c "
+                                    apt-get update && apt-get install -y git postgresql-client curl build-essential
+                                    pip install -r requirements.txt
+                                    python -m pytest tests/ -v --tb=short
+                                "
+                        '''
+                        echo "✅ All tests passed"
+                    } catch (Exception e) {
+                        echo "❌ Tests failed: ${e.getMessage()}"
+                        throw e
+                    }
+                }
             }
         }
         
         stage('Code Quality') {
             steps {
-                sh '''
-                    echo "🔍 Running code quality checks..."
-                    
-                    # Run code quality checks in a Python container
-                    docker run --rm -v $(pwd):/workspace -w /workspace python:3.11-slim bash -c "
-                        pip install flake8 &&
-                        python -m flake8 src/ --max-line-length=120 || echo 'Code quality check completed'
-                    "
-                    
-                    echo "✅ Code quality check completed"
-                '''
+                echo '🔍 Running code quality checks...'
+                script {
+                    try {
+                        sh '''
+                            # Run flake8 in a temporary container
+                            docker run --rm \
+                                -v $(pwd):/app \
+                                -w /app \
+                                python:3.11-slim \
+                                bash -c "
+                                    pip install flake8
+                                    flake8 src/ --max-line-length=100 --ignore=E203,W503
+                                "
+                        '''
+                        echo "✅ Code quality checks passed"
+                    } catch (Exception e) {
+                        echo "❌ Code quality checks failed: ${e.getMessage()}"
+                        throw e
+                    }
+                }
             }
         }
         
         stage('Deploy Application') {
             steps {
-                sh '''
-                    echo "🚀 Deploying application..."
-                    
-                    # Stop any existing containers
-                    echo "Stopping existing containers..."
-                    docker-compose down --remove-orphans || echo "No existing containers to stop"
-                    
-                    # Clean up orphaned containers
-                    docker container prune -f || echo "No containers to prune"
-                    
-                    # Build and start services
-                    echo "Building and starting services..."
-                    docker-compose up -d --build --force-recreate
-                    
-                    # Wait for services to start
-                    echo "Waiting for services to start..."
-                    sleep 45
-                    
-                    # Health check with retry logic
-                    echo "Performing health check..."
-                    for i in {1..5}; do
-                        if curl -f ${HEALTH_URL}; then
-                            echo "✅ Health check passed on attempt $i"
-                            break
-                        else
-                            echo "⏳ Health check attempt $i failed, retrying in 10 seconds..."
-                            sleep 10
-                        fi
-                    done
-                    
-                    echo "✅ DEPLOYMENT COMPLETED!"
-                '''
+                echo '🚀 Deploying application...'
+                script {
+                    try {
+                        sh '''
+                            # Stop existing containers
+                            docker-compose down --remove-orphans || true
+                            
+                            # Clean up old images
+                            docker image prune -f || true
+                            
+                            # Start services
+                            docker-compose up -d --build --force-recreate
+                            
+                            # Wait for services to start
+                            echo "⏳ Waiting for services to start..."
+                            sleep 30
+                            
+                            # Check if containers are running
+                            docker-compose ps
+                        '''
+                        echo "✅ Application deployed successfully"
+                    } catch (Exception e) {
+                        echo "❌ Deployment failed: ${e.getMessage()}"
+                        throw e
+                    }
+                }
+            }
+        }
+        
+        stage('Health Check') {
+            steps {
+                echo '🏥 Performing health checks...'
+                script {
+                    try {
+                        sh '''
+                            # Wait for application to be ready
+                            echo "⏳ Waiting for application to be ready..."
+                            for i in {1..30}; do
+                                if curl -f ${HEALTH_URL} > /dev/null 2>&1; then
+                                    echo "✅ Health check passed"
+                                    break
+                                fi
+                                echo "⏳ Attempt $i/30 - waiting for service..."
+                                sleep 10
+                            done
+                            
+                            # Final health check
+                            curl -f ${HEALTH_URL} || {
+                                echo "❌ Final health check failed"
+                                exit 1
+                            }
+                            
+                            # Get health status
+                            echo "📊 Health Status:"
+                            curl -s ${HEALTH_URL} | jq '.' || curl -s ${HEALTH_URL}
+                        '''
+                        echo "✅ Health checks passed"
+                    } catch (Exception e) {
+                        echo "❌ Health check failed: ${e.getMessage()}"
+                        throw e
+                    }
+                }
             }
         }
         
         stage('Verify Deployment') {
             steps {
-                sh '''
-                    echo "🔍 Verifying deployment..."
-                    
-                    # Check running containers
-                    echo "Checking running containers..."
-                    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-                    
-                    # Test service endpoint
-                    echo "Testing service endpoint..."
-                    curl -s ${HEALTH_URL} | head -5 || echo "Service response check"
-                    
-                    # Check service logs
-                    echo "Checking service logs..."
-                    docker logs ${SERVICE_NAME} --tail 20 || echo "Could not get service logs"
-                    
-                    # Verify port is listening
-                    echo "Verifying port 8001 is listening..."
-                    netstat -tulpn | grep :8001 || echo "Port check completed"
-                '''
+                echo '🔍 Verifying deployment...'
+                script {
+                    try {
+                        sh '''
+                            # Check container status
+                            echo "📋 Container Status:"
+                            docker-compose ps
+                            
+                            # Check service logs
+                            echo "📋 Service Logs (last 20 lines):"
+                            docker logs ${SERVICE_NAME} --tail 20
+                            
+                            # Test all critical endpoints
+                            echo "🧪 Testing endpoints..."
+                            
+                            # Test root endpoint
+                            curl -f http://localhost:8001/ || echo "❌ Root endpoint failed"
+                            
+                            # Test health endpoint
+                            curl -f http://localhost:8001/health || echo "❌ Health endpoint failed"
+                            
+                            # Test git status endpoint
+                            curl -f http://localhost:8001/api/git/status || echo "❌ Git status endpoint failed"
+                            
+                            # Test system endpoint
+                            curl -f http://localhost:8001/api/system || echo "❌ System endpoint failed"
+                            
+                            # Test metrics endpoint
+                            curl -f http://localhost:8001/metrics || echo "❌ Metrics endpoint failed"
+                            
+                            echo "✅ All endpoint tests completed"
+                        '''
+                        echo "✅ Deployment verification completed"
+                    } catch (Exception e) {
+                        echo "❌ Deployment verification failed: ${e.getMessage()}"
+                        throw e
+                    }
+                }
             }
         }
     }
     
     post {
         success {
-            echo "🎉 CI/CD Pipeline SUCCESSFUL!"
-            echo "✅ Code checked out successfully"
-            echo "✅ Application built successfully"
-            echo "✅ Tests completed"
-            echo "✅ Code quality checked"
-            echo "✅ Application deployed successfully"
-            echo "🌐 Your service is running at: http://localhost:8001"
-            echo "🗄️ Database accessible at: localhost:5433"
-            echo ""
-            echo "📊 Docker Containers Status:"
-            sh 'docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"'
+            echo '🎉 Pipeline completed successfully!'
+            echo '✅ Commit Tracker Service is running and healthy'
+            echo "🌐 Service URL: http://localhost:8001"
+            echo " Health Check: ${HEALTH_URL}"
+            echo "📚 API Docs: http://localhost:8001/api/docs"
+            echo "📊 Metrics: http://localhost:8001/metrics"
+            
+            // Optional: Send success notification
+            script {
+                try {
+                    sh '''
+                        echo "Pipeline Status: SUCCESS" > pipeline_status.txt
+                        echo "Service URL: http://localhost:8001" >> pipeline_status.txt
+                        echo "Health Check: ${HEALTH_URL}" >> pipeline_status.txt
+                        echo "Build: ${BUILD_NUMBER}" >> pipeline_status.txt
+                        echo "Commit: ${GIT_COMMIT_SHORT}" >> pipeline_status.txt
+                    '''
+                } catch (Exception e) {
+                    echo "Failed to create status file: ${e.getMessage()}"
+                }
+            }
         }
+        
         failure {
-            echo "❌ CI/CD Pipeline Failed!"
-            echo "🔍 Debugging information:"
-            sh '''
-                echo "Docker containers:"
-                docker ps -a
-                echo "Docker images:"
-                docker images | head -10
-                echo "Docker compose status:"
-                docker-compose ps || echo "Docker compose not available"
-            '''
+            echo '❌ Pipeline failed!'
+            echo '🔍 Troubleshooting steps:'
+            echo '1. Check Docker is running: docker ps'
+            echo '2. Check service logs: docker logs commit-tracker-service'
+            echo '3. Check container status: docker-compose ps'
+            echo '4. Verify Docker socket access: docker ps'
+            echo '5. Check health endpoint: curl http://localhost:8001/health'
+            
+            // Collect failure information
+            script {
+                try {
+                    sh '''
+                        echo "Pipeline Status: FAILED" > pipeline_status.txt
+                        echo "Build: ${BUILD_NUMBER}" >> pipeline_status.txt
+                        echo "Commit: ${GIT_COMMIT_SHORT}" >> pipeline_status.txt
+                        echo "Error: Pipeline failed at stage" >> pipeline_status.txt
+                        
+                        # Collect container logs
+                        echo "=== Container Logs ===" >> failure_logs.txt
+                        docker logs commit-tracker-service --tail 50 >> failure_logs.txt 2>&1 || true
+                        docker logs commit-tracker-postgres --tail 20 >> failure_logs.txt 2>&1 || true
+                        
+                        # Collect container status
+                        echo "=== Container Status ===" >> failure_logs.txt
+                        docker-compose ps >> failure_logs.txt 2>&1 || true
+                        
+                        # Collect system info
+                        echo "=== System Info ===" >> failure_logs.txt
+                        docker version >> failure_logs.txt 2>&1 || true
+                        docker-compose version >> failure_logs.txt 2>&1 || true
+                    '''
+                } catch (Exception e) {
+                    echo "Failed to collect failure information: ${e.getMessage()}"
+                }
+            }
         }
+        
         always {
-            echo "Pipeline completed"
-            cleanWs()
+            echo '🧹 Cleaning up workspace...'
+            // Cleanup is handled by Jenkins workspace cleanup
         }
     }
 }
