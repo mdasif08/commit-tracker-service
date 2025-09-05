@@ -187,6 +187,12 @@ EOF
                             
                             # Clean up old images and build without cache
                             docker image prune -f || true
+                            
+                            # Show docker-compose file for debugging
+                            echo "📋 Docker Compose Configuration:"
+                            cat docker-compose.yml
+                            
+                            # Build and start services
                             docker-compose build --no-cache
                             docker-compose up -d --force-recreate
                             
@@ -195,7 +201,20 @@ EOF
                             sleep 30
                             
                             # Check if containers are running
+                            echo "📋 Container Status:"
                             docker-compose ps
+                            
+                            # Check container logs for debugging
+                            echo "📋 Service Logs (last 50 lines):"
+                            docker logs ${SERVICE_NAME} --tail 50 || echo "No logs available"
+                            
+                            # Check if port 8001 is listening
+                            echo "📋 Port Status:"
+                            netstat -tlnp | grep 8001 || echo "Port 8001 not listening"
+                            
+                            # Check container health
+                            echo "📋 Container Health:"
+                            docker inspect ${SERVICE_NAME} --format="{{.State.Health.Status}}" || echo "No health check configured"
                         '''
                         echo "✅ Application deployed successfully"
                     } catch (Exception e) {
@@ -212,20 +231,39 @@ EOF
                 script {
                     try {
                         sh '''
-                            # Wait for application to be ready
+                            # Wait for application to be ready with more detailed debugging
                             echo "⏳ Waiting for application to be ready..."
                             for i in $(seq 1 30); do
+                                echo "⏳ Attempt $i/30 - checking service..."
+                                
+                                # Check if container is running
+                                if ! docker ps | grep -q ${SERVICE_NAME}; then
+                                    echo "❌ Container ${SERVICE_NAME} is not running"
+                                    docker ps -a | grep ${SERVICE_NAME}
+                                    exit 1
+                                fi
+                                
+                                # Check if port is accessible
                                 if curl -f ${HEALTH_URL} > /dev/null 2>&1; then
                                     echo "✅ Health check passed"
                                     break
                                 fi
-                                echo "⏳ Attempt $i/30 - waiting for service..."
+                                
+                                # Show detailed error for debugging
+                                echo "❌ Health check failed, trying to get more info..."
+                                curl -v ${HEALTH_URL} 2>&1 || true
+                                
+                                echo "⏳ Waiting 10 seconds before retry..."
                                 sleep 10
                             done
                             
                             # Final health check
                             curl -f ${HEALTH_URL} || {
                                 echo "❌ Final health check failed"
+                                echo "📋 Container Status:"
+                                docker-compose ps
+                                echo "📋 Service Logs:"
+                                docker logs ${SERVICE_NAME} --tail 100
                                 exit 1
                             }
                             
