@@ -1,10 +1,5 @@
 pipeline {
-    agent {
-        docker {
-            image 'docker:latest'
-            args '-v /var/run/docker.sock:/var/run/docker.sock --privileged'
-        }
-    }
+    agent any
     
     environment {
         SERVICE_NAME = 'commit-tracker-service'
@@ -37,9 +32,6 @@ pipeline {
                 script {
                     try {
                         sh '''
-                            # Install docker-compose
-                            apk add --no-cache docker-compose
-                            
                             # Build the Docker image
                             docker build -t ${SERVICE_NAME}:${GIT_COMMIT_SHORT} .
                             docker tag ${SERVICE_NAME}:${GIT_COMMIT_SHORT} ${SERVICE_NAME}:latest
@@ -113,9 +105,6 @@ pipeline {
                 script {
                     try {
                         sh '''
-                            # Install docker-compose
-                            apk add --no-cache docker-compose
-                            
                             # Stop existing containers
                             docker-compose down --remove-orphans || true
                             
@@ -147,9 +136,6 @@ pipeline {
                 script {
                     try {
                         sh '''
-                            # Install curl for health checks
-                            apk add --no-cache curl
-                            
                             # Wait for application to be ready
                             echo "⏳ Waiting for application to be ready..."
                             for i in $(seq 1 30); do
@@ -186,9 +172,6 @@ pipeline {
                 script {
                     try {
                         sh '''
-                            # Install curl for endpoint testing
-                            apk add --no-cache curl
-                            
                             # Check container status
                             echo "📋 Container Status:"
                             docker-compose ps
