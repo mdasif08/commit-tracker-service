@@ -89,9 +89,13 @@ COPY requirements.txt .
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
-# Copy source code
+# Copy source code and scripts
 COPY src/ ./src/
 COPY tests/ ./tests/
+COPY scripts/ ./scripts/
+
+# Set Python path to include scripts directory
+ENV PYTHONPATH=/app/scripts:/app/src
 
 # Run tests
 CMD ["python", "-m", "pytest", "tests/", "-v", "--tb=short"]
