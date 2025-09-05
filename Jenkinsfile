@@ -74,25 +74,35 @@ pipeline {
                                 exit 1
                             fi
                             
-                            # Run tests in a temporary container with absolute path
-                            docker run --rm \
-                                -v "$WORKSPACE_DIR":/app \
-                                -w /app \
-                                python:3.11-slim \
-                                bash -c "
-                                    echo 'Installing system dependencies...'
-                                    apt-get update && apt-get install -y git curl build-essential postgresql-client
-                                    
-                                    echo 'Checking if requirements.txt exists...'
-                                    ls -la /app/requirements.txt
-                                    
-                                    echo 'Installing Python dependencies...'
-                                    pip install --upgrade pip
-                                    pip install -r /app/requirements.txt
-                                    
-                                    echo 'Running tests...'
-                                    python -m pytest /app/tests/ -v --tb=short
-                                "
+                            # Create a Dockerfile for testing
+                            cat > Dockerfile.test << 'EOF'
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y git curl build-essential postgresql-client
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --upgrade pip
+RUN pip install -r requirements.txt
+
+# Copy source code
+COPY src/ ./src/
+COPY tests/ ./tests/
+
+# Run tests
+CMD ["python", "-m", "pytest", "tests/", "-v", "--tb=short"]
+EOF
+                            
+                            # Build and run test container
+                            docker build -f Dockerfile.test -t ${SERVICE_NAME}-test .
+                            docker run --rm ${SERVICE_NAME}-test
+                            
+                            # Clean up test image
+                            docker rmi ${SERVICE_NAME}-test || true
                         '''
                         echo "✅ All tests passed"
                     } catch (Exception e) {
@@ -109,18 +119,32 @@ pipeline {
                 script {
                     try {
                         sh '''
-                            # Get the current working directory
-                            WORKSPACE_DIR=$(pwd)
+                            # Create a Dockerfile for code quality
+                            cat > Dockerfile.quality << 'EOF'
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y git curl build-essential
+
+# Set working directory
+WORKDIR /app
+
+# Install flake8
+RUN pip install flake8
+
+# Copy source code
+COPY src/ ./src/
+
+# Run flake8
+CMD ["flake8", "src/", "--max-line-length=100", "--ignore=E203,W503"]
+EOF
                             
-                            # Run flake8 in a temporary container
-                            docker run --rm \
-                                -v "$WORKSPACE_DIR":/app \
-                                -w /app \
-                                python:3.11-slim \
-                                bash -c "
-                                    pip install flake8
-                                    flake8 /app/src/ --max-line-length=100 --ignore=E203,W503
-                                "
+                            # Build and run quality check container
+                            docker build -f Dockerfile.quality -t ${SERVICE_NAME}-quality .
+                            docker run --rm ${SERVICE_NAME}-quality
+                            
+                            # Clean up quality check image
+                            docker rmi ${SERVICE_NAME}-quality || true
                         '''
                         echo "✅ Code quality checks passed"
                     } catch (Exception e) {
