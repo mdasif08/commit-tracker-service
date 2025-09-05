@@ -1,5 +1,10 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'docker:latest'
+            args '-v /var/run/docker.sock:/var/run/docker.sock --privileged'
+        }
+    }
     
     environment {
         SERVICE_NAME = 'commit-tracker-service'
@@ -32,6 +37,9 @@ pipeline {
                 script {
                     try {
                         sh '''
+                            # Install docker-compose
+                            apk add --no-cache docker-compose
+                            
                             # Build the Docker image
                             docker build -t ${SERVICE_NAME}:${GIT_COMMIT_SHORT} .
                             docker tag ${SERVICE_NAME}:${GIT_COMMIT_SHORT} ${SERVICE_NAME}:latest
@@ -50,7 +58,7 @@ pipeline {
         
         stage('Run Tests') {
             steps {
-                echo '🧪 Running tests...'
+                echo '�� Running tests...'
                 script {
                     try {
                         sh '''
@@ -105,6 +113,9 @@ pipeline {
                 script {
                     try {
                         sh '''
+                            # Install docker-compose
+                            apk add --no-cache docker-compose
+                            
                             # Stop existing containers
                             docker-compose down --remove-orphans || true
                             
@@ -136,9 +147,12 @@ pipeline {
                 script {
                     try {
                         sh '''
+                            # Install curl for health checks
+                            apk add --no-cache curl
+                            
                             # Wait for application to be ready
                             echo "⏳ Waiting for application to be ready..."
-                            for i in {1..30}; do
+                            for i in $(seq 1 30); do
                                 if curl -f ${HEALTH_URL} > /dev/null 2>&1; then
                                     echo "✅ Health check passed"
                                     break
@@ -172,12 +186,15 @@ pipeline {
                 script {
                     try {
                         sh '''
+                            # Install curl for endpoint testing
+                            apk add --no-cache curl
+                            
                             # Check container status
                             echo "📋 Container Status:"
                             docker-compose ps
                             
                             # Check service logs
-                            echo "📋 Service Logs (last 20 lines):"
+                            echo "�� Service Logs (last 20 lines):"
                             docker logs ${SERVICE_NAME} --tail 20
                             
                             # Test all critical endpoints
@@ -212,7 +229,7 @@ pipeline {
     
     post {
         success {
-            echo '🎉 Pipeline completed successfully!'
+            echo '�� Pipeline completed successfully!'
             echo '✅ Commit Tracker Service is running and healthy'
             echo "🌐 Service URL: http://localhost:8001"
             echo " Health Check: ${HEALTH_URL}"
