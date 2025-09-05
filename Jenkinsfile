@@ -94,8 +94,15 @@ COPY src/ ./src/
 COPY tests/ ./tests/
 COPY scripts/ ./scripts/
 
+# Copy .git directory to make it a proper Git repository
+COPY .git/ ./.git/
+
 # Set Python path to include scripts directory
 ENV PYTHONPATH=/app/scripts:/app/src
+
+# Initialize Git configuration for testing
+RUN git config --global user.name "Test User" && \
+    git config --global user.email "test@example.com"
 
 # Run tests
 CMD ["python", "-m", "pytest", "tests/", "-v", "--tb=short"]
